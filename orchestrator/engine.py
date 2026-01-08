@@ -16,6 +16,7 @@ from api_clients.base import (
 from api_clients import PolymarketAPIClient, KalshiAPIClient
 from api_clients.mock import MockMarketAPIClient
 from trader_identification import TraderIdentificationEngine, TraderSelectionConfig as TISelectionConfig
+from trader_identification.growth_selectors import GrowthBasedSelector, GrowthSelectionConfig
 from bot_filtering import BotFilter, BotFilterConfig
 from sandbox import (
     SandboxRunner,
@@ -38,6 +39,7 @@ from .config import (
     OrchestratorState,
     OrchestrationResult,
     TraderAnalysisResult,
+    SelectionMode,
 )
 
 
@@ -119,18 +121,37 @@ class CopyCatOrchestrator:
 
     def _init_module_engines(self):
         """Initialize trader identification and bot filtering engines."""
-        # Convert orchestrator config to module-specific configs
-        trader_selection_config = TISelectionConfig(
-            min_win_rate=self.config.trader_selection.min_win_rate,
-            min_trades=self.config.trader_selection.min_trades,
-            max_drawdown=self.config.trader_selection.max_drawdown,
-            min_sharpe_ratio=self.config.trader_selection.min_sharpe_ratio,
-            min_profit_factor=self.config.trader_selection.min_profit_factor,
-            min_total_pnl=self.config.trader_selection.min_total_pnl,
-            max_avg_hold_time_hours=self.config.trader_selection.max_avg_hold_time_hours,
-            min_reputation_score=self.config.trader_selection.min_reputation_score,
-        )
-        self.trader_engine = TraderIdentificationEngine(config=trader_selection_config)
+        
+        # Determine selection mode
+        selection_mode = getattr(self.config.trader_selection, 'mode', SelectionMode.GROWTH)
+        
+        # Initialize trader identification engine based on mode
+        if selection_mode == SelectionMode.GROWTH:
+            # Growth-first selection
+            self.growth_selector = GrowthBasedSelector(
+                min_total_pnl=self.config.trader_selection.growth_min_total_pnl,
+                min_growth_rate=self.config.trader_selection.growth_min_growth_rate,
+                max_drawdown=self.config.trader_selection.growth_max_drawdown,
+                min_equity_slope=self.config.trader_selection.growth_min_equity_slope,
+                min_consistency_score=self.config.trader_selection.growth_min_consistency,
+                min_active_days=self.config.trader_selection.growth_min_active_days,
+            )
+            logger.info("Initialized Growth-Based Trader Selector")
+        else:
+            # Traditional win-rate based selection
+            self.growth_selector = None
+            trader_selection_config = TISelectionConfig(
+                min_win_rate=self.config.trader_selection.min_win_rate,
+                min_trades=self.config.trader_selection.min_trades,
+                max_drawdown=self.config.trader_selection.max_drawdown,
+                min_sharpe_ratio=self.config.trader_selection.min_sharpe_ratio,
+                min_profit_factor=self.config.trader_selection.min_profit_factor,
+                min_total_pnl=self.config.trader_selection.min_total_pnl,
+                max_avg_hold_time_hours=self.config.trader_selection.max_avg_hold_time_hours,
+                min_reputation_score=self.config.trader_selection.min_reputation_score,
+            )
+            self.trader_engine = TraderIdentificationEngine(config=trader_selection_config)
+            logger.info("Initialized Win-Rate Based Trader Selector")
         
         # Bot filter config
         bot_filter_config = BotFilterConfig(
@@ -598,37 +619,96 @@ class CopyCatOrchestrator:
                     }
                 )
             
-            # Step 2: Trader identification and scoring
-            trader_result = await self.trader_engine.analyze_trader(
-                trader_address=trader_address,
-                trades=trades
-            )
+            # Step 2: Trader identification and scoring based on mode
+            selection_mode = getattr(self.config.trader_selection, 'mode', SelectionMode.GROWTH)
             
-            # Step 3: Calculate recommended position size
-            position_size = self._calculate_position_size(trader_result)
-            
-            return TraderAnalysisResult(
-                trader_address=trader_address,
-                is_suitable=trader_result.is_suitable,
-                reputation_score=trader_result.reputation_score,
-                confidence_score=trader_result.confidence_score,
-                performance_metrics={
-                    "total_pnl": trader_result.performance.total_pnl,
-                    "win_rate": trader_result.performance.win_rate,
-                    "sharpe_ratio": trader_result.performance.sharpe_ratio,
-                    "max_drawdown": trader_result.performance.max_drawdown,
-                    "total_trades": trader_result.performance.total_trades,
-                },
-                bot_filter_result={
-                    "is_bot": bot_result.is_bot,
-                    "hft_score": bot_result.hft_score,
-                    "arbitrage_score": bot_result.arbitrage_score,
-                    "pattern_score": bot_result.pattern_score,
-                },
-                selection_reasons=trader_result.selection_reasons,
-                rejection_reasons=trader_result.rejection_reasons,
-                recommended_position_size=position_size,
-            )
+            if selection_mode == SelectionMode.GROWTH and self.growth_selector:
+                # Use growth-based selection
+                growth_metrics, is_suitable = self.growth_selector.analyze_trader_growth(
+                    trader_address, trades
+                )
+                
+                # Calculate performance metrics from trades
+                total_pnl = sum(t.total_value * (t.price - 0.5) * 2 for t in trades)
+                winning_trades = [t for t in trades if t.total_value * (t.price - 0.5) > 0]
+                win_rate = len(winning_trades) / len(trades) if trades else 0
+                
+                if is_suitable:
+                    selection_reasons = [
+                        f"Total P&L: ${growth_metrics.total_pnl:,.2f}",
+                        f"Equity curve slope: {growth_metrics.equity_curve_slope:.4f}",
+                        f"Max drawdown: {growth_metrics.max_drawdown:.1%}",
+                        f"Growth score: {growth_metrics.growth_score:.2f}",
+                    ]
+                    rejection_reasons = []
+                else:
+                    selection_reasons = []
+                    rejection_reasons = [
+                        f"Total P&L (${growth_metrics.total_pnl:,.2f}) below minimum",
+                        f"Max drawdown ({growth_metrics.max_drawdown:.1%}) too high",
+                        f"Overall growth score ({growth_metrics.overall_score:.2f}) too low",
+                    ]
+                
+                # Calculate position size using growth score
+                position_size = self._calculate_position_size_growth(growth_metrics)
+                
+                return TraderAnalysisResult(
+                    trader_address=trader_address,
+                    is_suitable=is_suitable,
+                    reputation_score=growth_metrics.growth_score,
+                    confidence_score=growth_metrics.overall_score,
+                    performance_metrics={
+                        "total_pnl": growth_metrics.total_pnl,
+                        "win_rate": win_rate,
+                        "sharpe_ratio": growth_metrics.equity_curve_slope * 100,  # Approximate
+                        "max_drawdown": growth_metrics.max_drawdown,
+                        "total_trades": growth_metrics.total_trades,
+                        "growth_score": growth_metrics.growth_score,
+                        "consistency_score": growth_metrics.consistency_score,
+                        "stability_score": growth_metrics.stability_score,
+                    },
+                    bot_filter_result={
+                        "is_bot": bot_result.is_bot,
+                        "hft_score": bot_result.hft_score,
+                        "arbitrage_score": bot_result.arbitrage_score,
+                        "pattern_score": bot_result.pattern_score,
+                    },
+                    selection_reasons=selection_reasons,
+                    rejection_reasons=rejection_reasons,
+                    recommended_position_size=position_size,
+                )
+            else:
+                # Use traditional win-rate based selection
+                trader_result = await self.trader_engine.analyze_trader(
+                    trader_address=trader_address,
+                    trades=trades
+                )
+                
+                # Step 3: Calculate recommended position size
+                position_size = self._calculate_position_size(trader_result)
+                
+                return TraderAnalysisResult(
+                    trader_address=trader_address,
+                    is_suitable=trader_result.is_suitable,
+                    reputation_score=trader_result.reputation_score,
+                    confidence_score=trader_result.confidence_score,
+                    performance_metrics={
+                        "total_pnl": trader_result.performance.total_pnl,
+                        "win_rate": trader_result.performance.win_rate,
+                        "sharpe_ratio": trader_result.performance.sharpe_ratio,
+                        "max_drawdown": trader_result.performance.max_drawdown,
+                        "total_trades": trader_result.performance.total_trades,
+                    },
+                    bot_filter_result={
+                        "is_bot": bot_result.is_bot,
+                        "hft_score": bot_result.hft_score,
+                        "arbitrage_score": bot_result.arbitrage_score,
+                        "pattern_score": bot_result.pattern_score,
+                    },
+                    selection_reasons=trader_result.selection_reasons,
+                    rejection_reasons=trader_result.rejection_reasons,
+                    recommended_position_size=position_size,
+                )
             
         except Exception as e:
             logger.error(f"Error analyzing trader {trader_address}: {e}")
@@ -636,6 +716,33 @@ class CopyCatOrchestrator:
                 trader_address=trader_address,
                 rejection_reasons=[f"Analysis error: {str(e)}"]
             )
+
+    def _calculate_position_size_growth(self, growth_metrics) -> float:
+        """Calculate recommended position size for a trader based on growth metrics."""
+        method = self.config.copy_trading.position_sizing_method
+        base_size = self.config.copy_trading.base_position_size
+        pct = self.config.copy_trading.position_size_pct
+        
+        if method == "fixed_amount":
+            return base_size
+        elif method == "percentage":
+            portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
+            return portfolio_value * pct
+        elif method == "scaled":
+            # Scale by growth score
+            portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
+            base = portfolio_value * pct
+            # Scale by growth/overall score (0.25 to 1.0 multiplier)
+            multiplier = 0.25 + (growth_metrics.overall_score * 0.75)
+            return base * multiplier
+        elif method == "kelly":
+            # Kelly based on growth score and stability
+            kelly = growth_metrics.overall_score * growth_metrics.stability_score
+            kelly *= self.config.copy_trading.kelly_fraction
+            portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
+            return portfolio_value * min(kelly, 0.25)  # Cap at 25%
+        else:
+            return base_size
 
     def _calculate_position_size(self, trader_result) -> float:
         """Calculate recommended position size for a trader."""

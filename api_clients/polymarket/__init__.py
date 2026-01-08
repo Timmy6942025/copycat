@@ -1,6 +1,6 @@
 """
 Polymarket API client implementation.
-Provides access to Gamma and CLOB APIs for market data and trading.
+Provides access to Gamma, CLOB, and Data APIs for market data and trading.
 """
 
 import os
@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from .gamma import GammaAPIClient
 from .clob import CLOBAPIClient
+from .data_api import DataAPIClient, UserActivity, MarketWithPosition
 from ..base import (
     MarketAPIClient,
     MarketData,
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 class PolymarketAPIClient(MarketAPIClient):
     """
     Polymarket API client.
-    Combines Gamma API (market data) and CLOB API (trading).
+    Combines Gamma API (market data), CLOB API (trading), and Data API (user data).
     """
 
     def __init__(
@@ -43,11 +44,13 @@ class PolymarketAPIClient(MarketAPIClient):
         api_key: Optional[str] = None,
         use_gamma: bool = True,
         use_clob: bool = True,
+        use_data: bool = True,
     ):
         """Initialize Polymarket API client."""
         super().__init__(api_key)
         self.gamma = GammaAPIClient(api_key) if use_gamma else None
         self.clob = CLOBAPIClient(api_key) if use_clob else None
+        self.data = DataAPIClient(api_key) if use_data else None
         self._session: Optional[aiohttp.ClientSession] = None
 
     @property
@@ -146,6 +149,38 @@ class PolymarketAPIClient(MarketAPIClient):
         if self.clob:
             return await self.clob.get_trader_positions(trader_address, market_id)
         return []
+
+    async def get_trader_positions_data(
+        self, trader_address: str, market_ids: Optional[List[str]] = None
+    ) -> List[MarketWithPosition]:
+        """Get trader's positions from Data API (more detailed)."""
+        if self.data:
+            return await self.data.get_positions(trader_address, market_ids=market_ids)
+        return []
+
+    async def get_trader_activity(
+        self, trader_address: str, limit: int = 100
+    ) -> List[UserActivity]:
+        """Get trader's activity from Data API."""
+        if self.data:
+            return await self.data.get_activity(trader_address, limit=limit)
+        return []
+
+    async def get_trader_trades_data(
+        self, trader_address: str, limit: int = 100
+    ) -> List[Trade]:
+        """Get trader's trade history from Data API."""
+        if self.data:
+            return await self.data.get_trades(trader_address, limit=limit)
+        return []
+
+    async def get_user_summary(
+        self, trader_address: str
+    ) -> Dict[str, Any]:
+        """Get a summary of user data from Data API."""
+        if self.data:
+            return await self.data.get_user_summary(trader_address)
+        return {}
 
     async def get_trader_orders(
         self,

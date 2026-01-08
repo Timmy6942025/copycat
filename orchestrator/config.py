@@ -33,17 +33,65 @@ class APIClientConfig:
     retry_delay_seconds: float = 1.0
 
 
-@dataclass
+class SelectionMode(Enum):
+    """Trader selection mode."""
+    WIN_RATE = "win_rate"  # Traditional win-rate based selection
+    GROWTH = "growth"  # Growth-first selection (recommended for faster returns)
+
+
 class TraderSelectionConfig:
     """Configuration for trader selection criteria."""
-    min_win_rate: float = 0.55
-    min_trades: int = 10
-    max_drawdown: float = 0.25
-    min_sharpe_ratio: float = 0.5
-    min_profit_factor: float = 1.0
-    min_total_pnl: float = 0.0
-    max_avg_hold_time_hours: float = 168.0  # 1 week
-    min_reputation_score: float = 0.5
+    
+    def __init__(
+        self,
+        # Selection mode
+        mode: SelectionMode = SelectionMode.GROWTH,  # Use growth by default
+        
+        # Win-rate mode settings (used when mode=WIN_RATE)
+        min_win_rate: float = 0.55,
+        min_trades: int = 10,
+        max_drawdown: float = 0.25,
+        min_sharpe_ratio: float = 0.5,
+        min_profit_factor: float = 1.0,
+        min_total_pnl: float = 0.0,
+        max_avg_hold_time_hours: float = 168.0,  # 1 week
+        min_reputation_score: float = 0.5,
+        
+        # Growth mode settings (used when mode=GROWTH)
+        growth_min_total_pnl: float = 100.0,  # At least $100 profit
+        growth_min_growth_rate: float = 0.01,  # At least 1% per trade
+        growth_max_drawdown: float = 0.50,  # Allow up to 50% drawdown
+        growth_min_equity_slope: float = 0.0005,  # Positive trend required
+        growth_min_consistency: float = 0.25,  # Reasonable consistency
+        growth_min_active_days: int = 3,  # At least 3 days of activity
+        
+        # Weights for growth scoring
+        growth_weight: float = 0.50,
+        consistency_weight: float = 0.25,
+        stability_weight: float = 0.25,
+    ):
+        self.mode = mode
+        
+        # Win-rate mode settings
+        self.min_win_rate = min_win_rate
+        self.min_trades = min_trades
+        self.max_drawdown = max_drawdown
+        self.min_sharpe_ratio = min_sharpe_ratio
+        self.min_profit_factor = min_profit_factor
+        self.min_total_pnl = min_total_pnl
+        self.max_avg_hold_time_hours = max_avg_hold_time_hours
+        self.min_reputation_score = min_reputation_score
+        
+        # Growth mode settings
+        self.growth_min_total_pnl = growth_min_total_pnl
+        self.growth_min_growth_rate = growth_min_growth_rate
+        self.growth_max_drawdown = growth_max_drawdown
+        self.growth_min_equity_slope = growth_min_equity_slope
+        self.growth_min_consistency = growth_min_consistency
+        self.growth_min_active_days = growth_min_active_days
+        self.growth_weight = growth_weight
+        self.consistency_weight = consistency_weight
+        self.stability_weight = stability_weight
 
 
 @dataclass

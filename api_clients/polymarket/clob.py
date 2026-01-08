@@ -163,7 +163,7 @@ class CLOBAPIClient:
                 return None
 
             return OrderBook(
-                market_id=market_id,
+                market_id=token_id,
                 bids=data.get("bids", []),
                 asks=data.get("asks", []),
                 last_updated=datetime.utcnow(),
