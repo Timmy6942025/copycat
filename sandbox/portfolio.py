@@ -266,6 +266,12 @@ class VirtualPortfolioManager:
         )
         self.completed_trades.append(trade)
 
+    def _update_position_prices(self):
+        """Update position prices based on current market prices."""
+        # This is a no-op since we don't have real-time price updates
+        # The update_market_prices method should be called externally
+        pass
+
     def update_market_prices(self, market_updates: Dict[str, float]):
         """Update current prices for all positions."""
         for market_id, new_price in market_updates.items():

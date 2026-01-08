@@ -132,15 +132,25 @@ class SandboxRunner:
         result = await self.executor.execute_virtual_order(order, market_data)
 
         if result.status == OrderStatus.FILLED.value:
-            await self.portfolio_manager.execute_copy_trade(
+            # Execute copy trade and get result
+            trade_result = await self.portfolio_manager.execute_copy_trade(
                 source_trade={
                     "trade_id": order.order_id,
                     "market_id": order.market_id,
                     "outcome": order.outcome if hasattr(order, 'outcome') else "YES",
                     "trader_address": order.source_trader,
+                    "market_data": market_data,
                 },
                 trader_config={}
             )
+            
+            # Record trade in performance tracker
+            if hasattr(trade_result, 'execution_id') and trade_result.execution_id:
+                # Get the completed trade from portfolio manager
+                completed_trades = self.portfolio_manager.completed_trades
+                if completed_trades:
+                    latest_trade = completed_trades[-1]
+                    self.tracker.record_trade(latest_trade)
 
         if self.order_callback:
             self.order_callback(order)

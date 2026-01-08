@@ -95,7 +95,7 @@ class VirtualOrder:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     source_trade_id: Optional[str] = None
     source_trader: Optional[str] = None
-    # Fee calculation helpers
+    outcome: str = "YES"
     trader_total_volume_30d: float = 0.0
 
 

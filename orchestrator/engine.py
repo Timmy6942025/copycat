@@ -175,35 +175,57 @@ class CopyCatOrchestrator:
         if not self.trading_runner:
             return
         
-        async def get_real_market_data(market_id: str):
-            """Fetch real market data from API client."""
-            client = self._get_api_client()
-            if not client:
-                return self._get_default_market_data(market_id)
-            
+        def get_real_market_data(market_id: str):
+            """Fetch real market data from API client (sync wrapper)."""
             try:
-                # Get real market data from API
-                market_data = await client.get_market_data(market_id)
-                if market_data:
-                    return {
-                        "market_id": market_data.market_id,
-                        "current_price": market_data.current_price,
-                        "previous_price": market_data.previous_price,
-                        "mid_price": market_data.mid_price,
-                        "best_bid": market_data.best_bid,
-                        "best_ask": market_data.best_ask,
-                        "spread": market_data.spread,
-                        "volatility": market_data.volatility,
-                    }
+                # Run the async function synchronously
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Event loop is already running, use run_until_complete
+                        return loop.run_until_complete(self._fetch_market_data(market_id))
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 
-                return self._get_default_market_data(market_id)
-                
+                try:
+                    return loop.run_until_complete(self._fetch_market_data(market_id))
+                finally:
+                    if loop.is_running():
+                        loop.close()
             except Exception as e:
                 logger.warning(f"Error fetching market data for {market_id}: {e}")
-                return self._get_default_market_data(market_id)
+                return self._get_default_market_data_dict(market_id)
         
         self.trading_runner.set_market_data_callback(get_real_market_data)
         logger.info("Real market data callback configured")
+    
+    async def _fetch_market_data(self, market_id: str):
+        """Fetch real market data from API client."""
+        client = self._get_api_client()
+        if not client:
+            return self._get_default_market_data_dict(market_id)
+        
+        try:
+            # Get real market data from API
+            market_data = await client.get_market_data(market_id)
+            if market_data:
+                return {
+                    "market_id": market_data.market_id,
+                    "current_price": market_data.current_price,
+                    "previous_price": market_data.previous_price,
+                    "mid_price": market_data.mid_price,
+                    "best_bid": market_data.best_bid,
+                    "best_ask": market_data.best_ask,
+                    "spread": market_data.spread,
+                    "volatility": market_data.volatility,
+                }
+            
+            return self._get_default_market_data_dict(market_id)
+            
+        except Exception as e:
+            logger.warning(f"Error fetching market data for {market_id}: {e}")
+            return self._get_default_market_data_dict(market_id)
 
     def _get_default_market_data(self, market_id: str) -> MarketData:
         """Get default market data when API is unavailable."""
@@ -220,6 +242,19 @@ class CopyCatOrchestrator:
             volatility=0.1,
             last_updated=datetime.utcnow(),
         )
+    
+    def _get_default_market_data_dict(self, market_id: str) -> Dict[str, Any]:
+        """Get default market data as dict when API is unavailable."""
+        return {
+            "market_id": market_id,
+            "current_price": 0.5,
+            "previous_price": 0.5,
+            "mid_price": 0.5,
+            "best_bid": 0.49,
+            "best_ask": 0.51,
+            "spread": 0.02,
+            "volatility": 0.1,
+        }
 
     def _get_api_client(self) -> MarketAPIClient:
         """Get the primary API client based on platform configuration."""
@@ -725,26 +760,34 @@ class CopyCatOrchestrator:
 
     async def _execute_copy_trade(self, trader_address: str, trade: Trade):
         """Execute a copy trade."""
+        import uuid
+
         if self.config.mode.value == "sandbox" and self.trading_runner:
             copy_config = self.state.copied_traders.get(trader_address)
             if not copy_config or not copy_config.enabled:
                 return
-            
-            # Create virtual order
+
+            # Convert OrderSide enum to string for VirtualOrder
+            side_str = trade.side.value if hasattr(trade.side, 'value') else str(trade.side)
+
+            # Create virtual order with all required fields
             order = VirtualOrder(
+                order_id=f"copy_{trade.trade_id}_{uuid.uuid4().hex[:8]}",
                 market_id=trade.market_id,
-                side=trade.side,
+                side=side_str,
                 quantity=copy_config.base_position_size or self.config.copy_trading.base_position_size,
+                order_type="market",  # Copy trades use market for immediate execution
                 outcome=trade.outcome,
-                source_trader_id=trader_address,
+                source_trade_id=trade.trade_id,
+                source_trader=trader_address,
             )
-            
+
             # Execute in sandbox
             result = await self.trading_runner.execute_order(order)
-            
-            if result.status.value == "filled":
+
+            if result.status == "FILLED":
                 self.state.trades_executed += 1
-                logger.info(f"Copied trade: {trade.market_id} {trade.side.value} @ {result.average_price:.3f}")
+                logger.info(f"Copied trade: {trade.market_id} {side_str} @ {result.average_price:.3f}")
             
         # Live mode would use real API orders
 
