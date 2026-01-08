@@ -705,6 +705,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Polymarket](https://polymarket.com) for their prediction market API
 - [Kalshi](https://kalshi.com) for market data access
 - All contributors and testers
+- Made with [Mninimax-m2.1](https://huggingface.co/MiniMaxAI/MiniMax-M2.1) with [opencode](https://github.com/anomalyco/opencode) paired with [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
 
 ---
 
