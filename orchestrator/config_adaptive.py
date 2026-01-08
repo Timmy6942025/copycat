@@ -167,6 +167,24 @@ class AdaptiveScaler:
 
         return self.limits
 
+    def get_status(self) -> Dict[str, Any]:
+        """Get adaptive scaler status."""
+        strategy = self.config.strategy
+        strategy_value = strategy.value if hasattr(strategy, 'value') else strategy
+        return {
+            "strategy": strategy_value,
+            "current_balance": self.current_balance,
+            "peak_balance": self.peak_balance,
+            "current_drawdown": self.current_drawdown,
+            "is_profitable": self.is_profitable,
+            "limits": {
+                "max_traders_to_copy": self.limits.max_traders_to_copy,
+                "max_traders_to_analyze": self.limits.max_traders_to_analyze,
+                "position_size_pct": self.limits.position_size_pct,
+                "scaling_reason": self.limits.scaling_reason,
+            },
+        }
+
 
 def create_adaptive_config(
     initial_balance: float = 100.0,

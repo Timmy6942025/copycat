@@ -401,9 +401,11 @@ class CapitalAllocator:
     
     def get_status(self) -> Dict[str, Any]:
         """Get allocator status."""
+        strategy = self.config.strategy
+        strategy_value = strategy.value if hasattr(strategy, 'value') else strategy
         return {
             "enabled": self.config.enabled,
-            "strategy": self.config.strategy.value,
+            "strategy": strategy_value,
             "traders_allocated": len(self.current_allocations),
             "last_rebalance": self.last_rebalance.isoformat() if self.last_rebalance else None,
         }
