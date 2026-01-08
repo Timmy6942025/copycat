@@ -1,0 +1,239 @@
+"""
+Orchestrator Configuration.
+Defines all configuration classes for the CopyCat trading orchestrator.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+from enum import Enum
+
+
+class TradingMode(Enum):
+    """Trading mode enumeration."""
+    SANDBOX = "sandbox"
+    LIVE = "live"
+
+
+class MarketPlatform(Enum):
+    """Supported market platforms."""
+    POLYMARKET = "polymarket"
+    KALSHI = "kalshi"
+
+
+@dataclass
+class APIClientConfig:
+    """Configuration for API clients."""
+    platform: MarketPlatform
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    rate_limit_rps: float = 10.0
+    timeout_seconds: float = 30.0
+    retry_attempts: int = 3
+    retry_delay_seconds: float = 1.0
+
+
+@dataclass
+class TraderSelectionConfig:
+    """Configuration for trader selection criteria."""
+    min_win_rate: float = 0.55
+    min_trades: int = 10
+    max_drawdown: float = 0.25
+    min_sharpe_ratio: float = 0.5
+    min_profit_factor: float = 1.0
+    min_total_pnl: float = 0.0
+    max_avg_hold_time_hours: float = 168.0  # 1 week
+    min_reputation_score: float = 0.5
+
+
+@dataclass
+class BotFilterOrchestratorConfig:
+    """Configuration for bot filtering in orchestrator context."""
+    hft_max_hold_time_seconds: float = 1.0
+    hft_min_trades_per_minute: int = 5
+    arbitrage_max_profit_pct: float = 0.5
+    arbitrage_min_trade_frequency: int = 100
+    min_hft_score_to_exclude: float = 0.7
+    min_arbitrage_score_to_exclude: float = 0.7
+    min_pattern_score_to_exclude: float = 0.7
+
+
+@dataclass
+class CopyTradingConfig:
+    """Configuration for copy trading behavior."""
+    position_sizing_method: str = "scaled"  # fixed_amount, percentage, scaled, kelly
+    base_position_size: float = 100.0  # Fixed amount or percentage of portfolio
+    position_size_pct: float = 0.05  # 5% of portfolio per trade
+    kelly_fraction: float = 0.25  # Fractional Kelly to reduce risk
+    max_position_size_pct: float = 0.10  # Max 10% per single trade
+    max_total_exposure_pct: float = 0.50  # Max 50% total exposure
+    min_order_size: float = 1.0  # Minimum $1 per trade
+    max_orders_per_day: int = 50
+
+
+@dataclass
+class SandboxConfigOrchestrator:
+    """Configuration for sandbox simulation (when mode is SANDBOX)."""
+    initial_balance: float = 10000.0
+    simulate_slippage: bool = True
+    slippage_model: str = "volume_weighted"
+    simulate_fees: bool = True
+    fee_model: str = "polymarket"
+    simulate_fill_probability: bool = True
+    persist_results: bool = True
+    results_storage_path: str = "./orchestrator_results"
+
+
+@dataclass
+class HealthCheckConfig:
+    """Configuration for health checks."""
+    enabled: bool = True
+    check_interval_seconds: float = 30.0
+    api_client_check: bool = True
+    api_client_timeout_seconds: float = 5.0
+    max_consecutive_failures: int = 3
+
+
+@dataclass
+class ErrorRecoveryConfig:
+    """Configuration for error recovery."""
+    enabled: bool = True
+    max_retries: int = 3
+    retry_delay_seconds: float = 1.0
+    circuit_breaker_enabled: bool = True
+    circuit_breaker_threshold: int = 5  # Failures before opening circuit
+    circuit_breaker_timeout_seconds: float = 60.0
+
+
+@dataclass
+class NotificationConfig:
+    """Configuration for notifications."""
+    enabled: bool = False
+    alert_on_profit_threshold: float = 0.05  # Alert at 5% profit
+    alert_on_loss_threshold: float = -0.05  # Alert at 5% loss
+    alert_on_trader_added: bool = True
+    alert_on_trader_removed: bool = True
+    alert_on_trading_error: bool = True
+    discord_webhook_url: Optional[str] = None
+    slack_webhook_url: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    notification_email: Optional[str] = None
+
+
+@dataclass
+class OrchestratorConfig:
+    """Main orchestrator configuration."""
+    # Mode settings
+    mode: TradingMode = TradingMode.SANDBOX
+    platform: MarketPlatform = MarketPlatform.POLYMARKET
+
+    # API Configuration
+    api_clients: List[APIClientConfig] = field(default_factory=list)
+
+    # Trader Selection
+    trader_selection: TraderSelectionConfig = field(default_factory=TraderSelectionConfig)
+
+    # Bot Filtering
+    bot_filter: BotFilterOrchestratorConfig = field(default_factory=BotFilterOrchestratorConfig)
+
+    # Copy Trading
+    copy_trading: CopyTradingConfig = field(default_factory=CopyTradingConfig)
+
+    # Sandbox (when mode is SANDBOX)
+    sandbox: SandboxConfigOrchestrator = field(default_factory=SandboxConfigOrchestrator)
+
+    # Health & Recovery
+    health_check: HealthCheckConfig = field(default_factory=HealthCheckConfig)
+    error_recovery: ErrorRecoveryConfig = field(default_factory=ErrorRecoveryConfig)
+
+    # Notifications
+    notifications: NotificationConfig = field(default_factory=NotificationConfig)
+
+    # Trading Constraints
+    max_traders_to_copy: int = 10
+    min_trader_reanalysis_interval_hours: float = 24.0
+    max_traders_to_analyze_per_cycle: int = 100
+
+    # Data Refresh
+    market_data_refresh_interval_seconds: float = 60.0
+    trader_data_refresh_interval_seconds: float = 300.0  # 5 minutes
+    trade_history_days: int = 30
+
+    # Logging
+    log_level: str = "INFO"
+    log_file: Optional[str] = None
+
+
+@dataclass
+class TraderCopyConfig:
+    """Configuration for copying a specific trader."""
+    trader_address: str
+    position_sizing_method: Optional[str] = None  # Override global setting
+    base_position_size: Optional[float] = None
+    position_size_pct: Optional[float] = None
+    max_position_size_pct: Optional[float] = None
+    enabled: bool = True
+    auto_remove_if_performance_drops: bool = True
+    min_performance_threshold: float = 0.3  # Remove if win rate drops below 30%
+
+
+@dataclass
+class OrchestratorState:
+    """Current state of the orchestrator."""
+    # Runtime state
+    is_running: bool = False
+    is_paused: bool = False
+    start_time: Optional[datetime] = None
+    last_cycle_time: Optional[datetime] = None
+    cycle_count: int = 0
+
+    # Trading state
+    copied_traders: Dict[str, TraderCopyConfig] = field(default_factory=dict)
+    active_positions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+    # Performance metrics
+    total_pnl: float = 0.0
+    total_pnl_pct: float = 0.0
+    win_rate: float = 0.0
+    sharpe_ratio: float = 0.0
+    max_drawdown: float = 0.0
+
+    # Health state
+    api_healthy: bool = True
+    consecutive_failures: int = 0
+    circuit_breaker_open: bool = False
+
+    # Statistics
+    trades_executed: int = 0
+    traders_analyzed: int = 0
+    traders_added: int = 0
+    traders_removed: int = 0
+    errors_encountered: int = 0
+
+
+@dataclass
+class OrchestrationResult:
+    """Result of an orchestration operation."""
+    success: bool = False
+    message: str = ""
+    details: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class TraderAnalysisResult:
+    """Result of analyzing a trader for copy trading."""
+    trader_address: str
+    is_suitable: bool = False
+    reputation_score: float = 0.0
+    confidence_score: float = 0.0
+    performance_metrics: Dict[str, Any] = field(default_factory=dict)
+    bot_filter_result: Dict[str, Any] = field(default_factory=dict)
+    selection_reasons: List[str] = field(default_factory=list)
+    rejection_reasons: List[str] = field(default_factory=list)
+    recommended_position_size: float = 0.0
+    timestamp: datetime = field(default_factory=datetime.utcnow)
