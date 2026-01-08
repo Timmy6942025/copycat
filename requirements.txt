@@ -12,6 +12,9 @@ aiohttp >= 3.8.0
 # Market data providers (free APIs)
 yfinance >= 0.2.0  # Yahoo Finance - free stock data
 
+# TUI Dashboard
+rich >= 13.0.0  # Terminal UI framework
+
 # Optional: For enhanced data collection
 # cryptofeed >= 1.0.0  # Cryptocurrency exchange data feeds (self-hostable)
 # hummingbot >= 1.0.0  # Self-hostable trading bot framework
@@ -19,3 +22,6 @@ yfinance >= 0.2.0  # Yahoo Finance - free stock data
 # Development dependencies
 pytest >= 7.0.0
 pytest-asyncio >= 0.20.0
+
+# Web Dashboard
+flask >= 2.3.0

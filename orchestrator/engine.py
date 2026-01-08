@@ -148,6 +148,8 @@ class CopyCatOrchestrator:
 
     def _init_trading_runner(self):
         """Initialize the trading runner (sandbox with real data or live trading)."""
+        from live_trading import LiveTradingRunner, LiveTradingConfig
+        
         if self.config.mode.value == "sandbox":
             # Sandbox runner with real market data from APIs
             sandbox_config = SandboxConfig(
@@ -166,9 +168,29 @@ class CopyCatOrchestrator:
             
             logger.info("Sandbox runner initialized with real market data from Polymarket API")
         else:
-            # Live trading would initialize real API trading
-            self.trading_runner = None
-            logger.info("Live trading mode - no sandbox runner")
+            # Live trading - initialize real trading runner
+            live_config = LiveTradingConfig(
+                initial_balance=self.config.live.initial_balance,
+                max_position_size_pct=self.config.live.max_position_size_pct,
+                max_total_exposure_pct=self.config.live.max_total_exposure_pct,
+                max_orders_per_day=self.config.live.max_orders_per_day,
+                min_order_size=self.config.live.min_order_size,
+                require_order_confirmation=self.config.live.require_order_confirmation,
+                max_slippage_pct=self.config.live.max_slippage_pct,
+                enable_price_protection=self.config.live.enable_price_protection,
+            )
+            
+            # Get API client for live trading
+            api_client = self._get_api_client()
+            wallet_address = self.config.live.wallet_address
+            
+            self.trading_runner = LiveTradingRunner(
+                config=live_config,
+                api_client=api_client,
+                wallet_address=wallet_address,
+            )
+            
+            logger.info(f"Live trading runner initialized for {self.config.platform.value}")
 
     def _setup_market_data_callback(self):
         """Set up callback to fetch real market data from API for sandbox execution."""
@@ -759,37 +781,59 @@ class CopyCatOrchestrator:
         return True
 
     async def _execute_copy_trade(self, trader_address: str, trade: Trade):
-        """Execute a copy trade."""
+        """Execute a copy trade in either sandbox or live mode."""
         import uuid
 
+        copy_config = self.state.copied_traders.get(trader_address)
+        if not copy_config or not copy_config.enabled:
+            return
+
+        # Calculate position size
+        position_size = copy_config.base_position_size or self.config.copy_trading.base_position_size
+        
+        # Convert OrderSide enum to string
+        side_str = trade.side.value if hasattr(trade.side, 'value') else str(trade.side)
+
         if self.config.mode.value == "sandbox" and self.trading_runner:
-            copy_config = self.state.copied_traders.get(trader_address)
-            if not copy_config or not copy_config.enabled:
-                return
-
-            # Convert OrderSide enum to string for VirtualOrder
-            side_str = trade.side.value if hasattr(trade.side, 'value') else str(trade.side)
-
-            # Create virtual order with all required fields
+            # Sandbox mode - use virtual order execution
+            from sandbox import VirtualOrder
+            
             order = VirtualOrder(
                 order_id=f"copy_{trade.trade_id}_{uuid.uuid4().hex[:8]}",
                 market_id=trade.market_id,
                 side=side_str,
-                quantity=copy_config.base_position_size or self.config.copy_trading.base_position_size,
-                order_type="market",  # Copy trades use market for immediate execution
+                quantity=position_size,
+                order_type="market",
                 outcome=trade.outcome,
                 source_trade_id=trade.trade_id,
                 source_trader=trader_address,
             )
 
-            # Execute in sandbox
             result = await self.trading_runner.execute_order(order)
 
             if result.status == "FILLED":
                 self.state.trades_executed += 1
-                logger.info(f"Copied trade: {trade.market_id} {side_str} @ {result.average_price:.3f}")
+                logger.info(f"Copied trade (sandbox): {trade.market_id} {side_str} @ {result.average_price:.3f}")
+        
+        elif self.config.mode.value == "live" and self.trading_runner:
+            # Live mode - execute real trades
+            from live_trading import LiveOrderResult
             
-        # Live mode would use real API orders
+            result = await self.trading_runner.execute_order(
+                market_id=trade.market_id,
+                side=side_str,
+                quantity=position_size,
+                order_type="market",
+                outcome=trade.outcome,
+                source_trade_id=trade.trade_id,
+                source_trader=trader_address,
+            )
+
+            if result.status.value == "filled":
+                self.state.trades_executed += 1
+                logger.info(f"Copied trade (live): {trade.market_id} {side_str} @ ${result.average_price:.4f}")
+            else:
+                logger.warning(f"Live order not filled: {result.message}")
 
     # =========================================================================
     # Performance Tracking
@@ -797,18 +841,20 @@ class CopyCatOrchestrator:
 
     async def _update_performance_metrics(self):
         """Update overall performance metrics."""
-        if self.config.mode.value == "sandbox" and self.trading_runner:
-            try:
-                metrics = self.trading_runner.get_performance_metrics()
-                
-                self.state.total_pnl = metrics.total_pnl
-                self.state.total_pnl_pct = metrics.total_pnl_pct
-                self.state.win_rate = metrics.win_rate
-                self.state.sharpe_ratio = metrics.sharpe_ratio
-                self.state.max_drawdown = metrics.max_drawdown
-                
-            except Exception as e:
-                logger.error(f"Error updating performance metrics: {e}")
+        if not self.trading_runner:
+            return
+
+        try:
+            metrics = self.trading_runner.get_performance_metrics()
+            
+            self.state.total_pnl = metrics.get('total_pnl', 0)
+            self.state.total_pnl_pct = metrics.get('total_pnl_pct', 0)
+            self.state.win_rate = metrics.get('win_rate', 0)
+            self.state.sharpe_ratio = metrics.get('sharpe_ratio', 0)
+            self.state.max_drawdown = metrics.get('max_drawdown', 0)
+            
+        except Exception as e:
+            logger.error(f"Error updating performance metrics: {e}")
 
     def _generate_performance_report(self):
         """Generate and save performance report."""

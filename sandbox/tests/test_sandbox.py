@@ -55,7 +55,7 @@ class TestSandboxConfig:
         """Test default configuration values."""
         config = SandboxConfig()
 
-        assert config.mode == "SANDBOX"
+        assert config.mode.value == "sandbox"  # Enum value is lowercase
         assert config.initial_balance == 10000.0
         assert config.max_orders_per_day == 50
         assert config.max_position_size_pct == 0.10
@@ -68,13 +68,13 @@ class TestSandboxConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = SandboxConfig(
-            mode="LIVE",
+            mode=SandboxMode.LIVE,
             initial_balance=50000.0,
             max_position_size_pct=0.20,
             simulate_slippage=False
         )
 
-        assert config.mode == "LIVE"
+        assert config.mode.value == "live"
         assert config.initial_balance == 50000.0
         assert config.max_position_size_pct == 0.20
         assert config.simulate_slippage is False

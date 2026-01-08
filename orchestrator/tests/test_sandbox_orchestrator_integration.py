@@ -17,7 +17,7 @@ from sandbox import SandboxRunner, SandboxConfig, VirtualOrder
 from api_clients.base import Trade, OrderSide
 
 
-async def test_orchestrator_sandbox_initialization():
+def test_orchestrator_sandbox_initialization():
     print("\n" + "=" * 60)
     print("Test 1: Orchestrator Sandbox Initialization")
     print("=" * 60)
@@ -40,7 +40,7 @@ async def test_orchestrator_sandbox_initialization():
     return True
 
 
-async def test_sandbox_runner_standalone():
+def test_sandbox_runner_standalone():
     print("\n" + "=" * 60)
     print("Test 2: Sandbox Runner Standalone")
     print("=" * 60)
@@ -63,7 +63,7 @@ async def test_sandbox_runner_standalone():
         outcome="YES",
     )
     
-    result = await runner.execute_order(order)
+    result = asyncio.run(runner.execute_order(order))
     
     assert result is not None
     assert result.status in ["FILLED", "PENDING", "NO_FILL"]
@@ -77,7 +77,7 @@ async def test_sandbox_runner_standalone():
     return True
 
 
-async def test_orchestrator_copy_trade_execution():
+def test_orchestrator_copy_trade_execution():
     print("\n" + "=" * 60)
     print("Test 3: Orchestrator Copy Trade Execution")
     print("=" * 60)
@@ -110,7 +110,7 @@ async def test_orchestrator_copy_trade_execution():
             enabled=True,
         )
         
-        await orchestrator._execute_copy_trade("0x1234567890abcdef", mock_trade)
+        asyncio.run(orchestrator._execute_copy_trade("0x1234567890abcdef", mock_trade))
         
         print("Copy trade executed successfully")
         print(f"Traders in copy list: {len(orchestrator.state.copied_traders)}")
@@ -118,7 +118,7 @@ async def test_orchestrator_copy_trade_execution():
     return True
 
 
-async def test_performance_metrics():
+def test_performance_metrics():
     print("\n" + "=" * 60)
     print("Test 4: Performance Metrics Integration")
     print("=" * 60)
@@ -140,8 +140,8 @@ async def test_performance_metrics():
             order_type="market",
             outcome="YES",
         )
-        await runner.execute_order(order)
-        await runner.update_market_prices({f"market_{i % 3}": 0.5 + (i * 0.01)})
+        asyncio.run(runner.execute_order(order))
+        asyncio.run(runner.update_market_prices({f"market_{i % 3}": 0.5 + (i * 0.01)}))
     
     metrics = runner.get_performance_metrics()
     
@@ -154,7 +154,7 @@ async def test_performance_metrics():
     return True
 
 
-async def test_orchestrator_status():
+def test_orchestrator_status():
     print("\n" + "=" * 60)
     print("Test 5: Orchestrator Status Reporting")
     print("=" * 60)
@@ -182,7 +182,7 @@ async def test_orchestrator_status():
     return True
 
 
-async def test_sandbox_real_time_data():
+def test_sandbox_real_time_data():
     print("\n" + "=" * 60)
     print("Test 6: Sandbox Real-Time Data Integration")
     print("=" * 60)
@@ -228,8 +228,8 @@ async def run_all_tests():
     results = []
     for name, test_func in tests:
         try:
-            result = await test_func()
-            results.append((name, "PASS"))
+            result = test_func()
+            results.append((name, "PASS" if result else "FAIL"))
         except Exception as e:
             print(f"Test failed: {e}")
             results.append((name, "FAIL"))

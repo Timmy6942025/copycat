@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CopyCat - AI Copy Trading Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🐱</span>
+                <h1>CopyCat</h1>
+            </div>
+            <div class="status-badge" id="status-badge">
+                <span class="status-dot"></span>
+                <span class="status-text">Initializing...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Portfolio Summary -->
+            <section class="section portfolio-section">
+                <h2>Portfolio Summary</h2>
+                <div class="portfolio-grid">
+                    <div class="metric-card">
+                        <span class="metric-label">Total P&L</span>
+                        <span class="metric-value" id="total-pnl">$0.00</span>
+                        <span class="metric-change" id="total-pnl-pct">0.00%</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Win Rate</span>
+                        <span class="metric-value" id="win-rate">0.0%</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Sharpe Ratio</span>
+                        <span class="metric-value" id="sharpe-ratio">0.00</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Max Drawdown</span>
+                        <span class="metric-value" id="max-drawdown">0.0%</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Trades Executed</span>
+                        <span class="metric-value" id="trades-executed">0</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Copied Traders</span>
+                        <span class="metric-value" id="copied-traders">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Control Panel -->
+            <section class="section control-section">
+                <h2>Control Panel</h2>
+                <div class="control-buttons">
+                    <button class="btn btn-success" id="btn-start" onclick="startOrchestrator()">
+                        <span class="btn-icon">▶</span>
+                        Start
+                    </button>
+                    <button class="btn btn-warning" id="btn-pause" onclick="pauseOrchestrator()" disabled>
+                        <span class="btn-icon">⏸</span>
+                        Pause
+                    </button>
+                    <button class="btn btn-danger" id="btn-resume" onclick="resumeOrchestrator()" disabled>
+                        <span class="btn-icon">▶</span>
+                        Resume
+                    </button>
+                    <button class="btn btn-danger" id="btn-stop" onclick="stopOrchestrator()" disabled>
+                        <span class="btn-icon">■</span>
+                        Stop
+                    </button>
+                </div>
+            </section>
+
+            <!-- Add Trader -->
+            <section class="section add-trader-section">
+                <h2>Add Trader</h2>
+                <div class="add-trader-form">
+                    <input type="text" id="trader-address" placeholder="Enter trader address (0x...)" class="input-text">
+                    <button class="btn btn-primary" onclick="addTrader()">
+                        <span class="btn-icon">+</span>
+                        Add Trader
+                    </button>
+                </div>
+            </section>
+
+            <!-- Copied Traders -->
+            <section class="section traders-section">
+                <h2>Copied Traders</h2>
+                <div class="traders-list" id="traders-list">
+                    <div class="empty-state">No traders copied yet</div>
+                </div>
+            </section>
+
+            <!-- Health Status -->
+            <section class="section health-section">
+                <h2>System Health</h2>
+                <div class="health-grid">
+                    <div class="health-item">
+                        <span class="health-label">API Status</span>
+                        <span class="health-value" id="api-health">Checking...</span>
+                    </div>
+                    <div class="health-item">
+                        <span class="health-label">Circuit Breaker</span>
+                        <span class="health-value" id="circuit-breaker">Closed</span>
+                    </div>
+                    <div class="health-item">
+                        <span class="health-label">Cycle Count</span>
+                        <span class="health-value" id="cycle-count">0</span>
+                    </div>
+                    <div class="health-item">
+                        <span class="health-label">Uptime</span>
+                        <span class="health-value" id="uptime">0s</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>CopyCat - AI Copy Trading for Prediction Markets</p>
+            <p class="footer-links">
+                <a href="https://github.com/copycat" target="_blank">GitHub</a> |
+                <a href="https://polymarket.com" target="_blank">Polymarket</a> |
+                <a href="https://kalshi.com" target="_blank">Kalshi</a>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

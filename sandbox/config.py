@@ -13,8 +13,50 @@ from enum import Enum
 
 class SandboxMode(Enum):
     """Sandbox simulation mode."""
-    SANDBOX = "SANDBOX"
-    LIVE = "LIVE"
+    SANDBOX = "sandbox"
+    LIVE = "live"
+
+    @classmethod
+    def from_string(cls, mode_str: str) -> "SandboxMode":
+        """Convert string to SandboxMode enum."""
+        mode_upper = mode_str.upper()
+        for mode in cls:
+            if mode.name == mode_upper:
+                return mode
+        return cls.SANDBOX  # Default to sandbox
+
+    def is_sandbox(self) -> bool:
+        """Check if running in sandbox mode."""
+        return self == self.SANDBOX
+
+    def is_live(self) -> bool:
+        """Check if running in live mode."""
+        return self == self.LIVE
+
+
+def get_sandbox_mode() -> SandboxMode:
+    """
+    Get the current sandbox mode from environment variable.
+
+    Returns:
+        SandboxMode.SANDBOX if COPYCAT_SANDBOX=true or not set
+        SandboxMode.LIVE if COPYCAT_SANDBOX=false
+    """
+    import os
+    sandbox_enabled = os.environ.get("COPYCAT_SANDBOX", "true").lower()
+    if sandbox_enabled in ("true", "1", "yes"):
+        return SandboxMode.SANDBOX
+    return SandboxMode.LIVE
+
+
+def is_sandbox_mode() -> bool:
+    """Quick check if running in sandbox mode."""
+    return get_sandbox_mode().is_sandbox()
+
+
+def is_live_mode() -> bool:
+    """Quick check if running in live mode."""
+    return get_sandbox_mode().is_live()
 
 
 class OrderStatus(Enum):
@@ -29,10 +71,20 @@ class OrderStatus(Enum):
 
 @dataclass
 class SandboxConfig:
-    """Configuration for sandbox simulation mode."""
+    """Configuration for sandbox simulation mode.
 
-    # Mode Selection
-    mode: str = "SANDBOX"  # "SANDBOX" or "LIVE"
+    Use the 'mode' field to switch between sandbox and live trading:
+    - SandboxConfig(mode=SandboxMode.SANDBOX): Virtual trading with simulated execution
+    - SandboxConfig(mode=SandboxMode.LIVE): Real trading (use with caution)
+
+    Can also be initialized with a string:
+    - SandboxConfig(mode="sandbox") or SandboxConfig(mode="live")
+
+    Environment variable COPYCAT_SANDBOX can override the default mode.
+    """
+
+    # Mode Selection - uses SandboxMode enum for consistency with orchestrator
+    mode: SandboxMode = SandboxMode.SANDBOX
 
     # Virtual Portfolio Settings
     initial_balance: float = 10000.0  # Starting USD balance

@@ -27,6 +27,25 @@ from sandbox.config import (
     ConstraintValidation,
     PortfolioSummary,
     VirtualTradeResult,
+    # Helper functions for mode switching
+    get_sandbox_mode,
+    is_sandbox_mode,
+    is_live_mode,
+)
+
+from sandbox.success_criteria import (
+    SuccessLevel,
+    MetricType,
+    MetricThresholds,
+    ConsistencyThresholds,
+    SuccessCriteriaResult,
+    PerformanceSnapshot,
+    CRITICAL_SUCCESS_FACTORS,
+    METRIC_THRESHOLDS,
+    CONSISTENCY_THRESHOLDS,
+    evaluate_success_criteria,
+    get_threshold_summary,
+    format_evaluation_result,
 )
 
 from sandbox.executor import VirtualOrderExecutor
@@ -51,6 +70,18 @@ from sandbox.backtest import (
 
 from sandbox.cli import SandboxCLI, SandboxManager
 from sandbox.runner import SandboxRunner
+from sandbox.dashboard import TUIDashboard, SimpleDashboard, DashboardConfig, run_dashboard
+from sandbox.dependencies import (
+    get_sandbox_runner,
+    create_sandbox_config,
+    get_trading_dependencies,
+    get_trading_mode,
+    is_sandbox_mode,
+    is_live_mode,
+    switch_mode,
+    validate_config_for_mode,
+    TradingDependencies,
+)
 
 __all__ = [
     # Config
@@ -67,6 +98,23 @@ __all__ = [
     "ConstraintValidation",
     "PortfolioSummary",
     "VirtualTradeResult",
+    # Mode switching helpers
+    "get_sandbox_mode",
+    "is_sandbox_mode",
+    "is_live_mode",
+    # Success Criteria
+    "SuccessLevel",
+    "MetricType",
+    "MetricThresholds",
+    "ConsistencyThresholds",
+    "SuccessCriteriaResult",
+    "PerformanceSnapshot",
+    "CRITICAL_SUCCESS_FACTORS",
+    "METRIC_THRESHOLDS",
+    "CONSISTENCY_THRESHOLDS",
+    "evaluate_success_criteria",
+    "get_threshold_summary",
+    "format_evaluation_result",
     # Executor
     "VirtualOrderExecutor",
     # Portfolio
@@ -88,4 +136,19 @@ __all__ = [
     "SandboxManager",
     # Runner
     "SandboxRunner",
+    # Dashboard
+    "TUIDashboard",
+    "SimpleDashboard",
+    "DashboardConfig",
+    "run_dashboard",
+    # Dependencies
+    "get_sandbox_runner",
+    "create_sandbox_config",
+    "get_trading_dependencies",
+    "get_trading_mode",
+    "is_sandbox_mode",
+    "is_live_mode",
+    "switch_mode",
+    "validate_config_for_mode",
+    "TradingDependencies",
 ]

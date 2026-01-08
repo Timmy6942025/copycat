@@ -1,8 +1,8 @@
 # Sandbox Simulation Report
 
-**Generated:** 2026-01-08 20:26:47 UTC
+**Generated:** 2026-01-08 17:20:01 UTC
 **Simulation Period:** 2026-01-08 to 2026-01-08
-**Duration:** 1 days
+**Duration:** 0 days
 
 ---
 
@@ -26,9 +26,7 @@
 ### Equity Curve
 
 ```
-|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░| $10,000
-|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░| $10,000
-|░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░| $10,000
+No equity data available
 ```
 
 ### Monthly Returns
@@ -56,14 +54,14 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Trades | 3 |
+| Total Trades | 0 |
 | Winning Trades | 0 |
-| Losing Trades | 3 |
+| Losing Trades | 0 |
 | Average Win | $0.00 |
 | Average Loss | $0.00 |
 | Win/Loss Ratio | inf |
-| Average Position Size | $90.67 |
-| Maximum Position Size | $98.00 |
+| Average Position Size | $0.00 |
+| Maximum Position Size | $0.00 |
 | Average Hold Time | 0.0 hours |
 
 ---
@@ -91,8 +89,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Average Slippage | 0.0113 |
-| Total Fees Paid | $5.44 |
+| Average Slippage | 0.0000 |
+| Total Fees Paid | $0.00 |
 | Fill Rate | 95.00% |
 | Partial Fill Rate | 5.00% |
 

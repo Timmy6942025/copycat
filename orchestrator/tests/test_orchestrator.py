@@ -20,6 +20,7 @@ from orchestrator.config import (
     OrchestratorState,
     OrchestrationResult,
     TraderAnalysisResult,
+    HealthCheckConfig,
 )
 from orchestrator.engine import CopyCatOrchestrator
 
@@ -331,6 +332,613 @@ class TestCopyCatOrchestrator:
         
         assert result.success is False
         assert "not in copy list" in result.message.lower()
+
+
+# =============================================================================
+# Trading Cycle Tests
+# =============================================================================
+
+class TestTradingCycle:
+    """Tests for trading cycle functionality."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    @pytest.mark.asyncio
+    async def test_run_trading_cycle_empty_traders(self, orchestrator):
+        """Test trading cycle with no new traders discovered."""
+        # Mock API client to return empty trades
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=[])
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        result = await orchestrator._run_trading_cycle()
+        
+        assert result.success is True
+        assert orchestrator.state.cycle_count == 1
+
+    @pytest.mark.asyncio
+    async def test_run_trading_cycle_with_traders(self, orchestrator):
+        """Test trading cycle discovers and analyzes traders."""
+        # Create mock trades with different traders
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        
+        mock_trades = [
+            Trade(
+                trade_id="t1",
+                market_id="m1",
+                trader_address="0xAAA",
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.6,
+                total_value=0.6,
+                timestamp=datetime.utcnow(),
+                outcome="YES",
+            ),
+            Trade(
+                trade_id="t2",
+                market_id="m2",
+                trader_address="0xBBB",
+                side=OrderSide.SELL,
+                quantity=1.0,
+                price=0.4,
+                total_value=0.4,
+                timestamp=datetime.utcnow(),
+                outcome="NO",
+            ),
+        ]
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        mock_client.get_trades_for_trader = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        result = await orchestrator._run_trading_cycle()
+        
+        assert result.success is True
+        assert orchestrator.state.cycle_count == 1
+
+    @pytest.mark.asyncio
+    async def test_discover_traders_filters_existing(self, orchestrator):
+        """Test that trader discovery filters out already copied traders."""
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        
+        # Add existing copied trader
+        orchestrator.state.copied_traders["0xEXISTING"] = TraderCopyConfig(
+            trader_address="0xEXISTING"
+        )
+        
+        mock_trades = [
+            Trade(
+                trade_id="t1",
+                market_id="m1",
+                trader_address="0xEXISTING",  # Already copied
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.6,
+                total_value=0.6,
+                timestamp=datetime.utcnow(),
+                outcome="YES",
+            ),
+            Trade(
+                trade_id="t2",
+                market_id="m2",
+                trader_address="0xNEW",  # New trader
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.6,
+                total_value=0.6,
+                timestamp=datetime.utcnow(),
+                outcome="YES",
+            ),
+        ]
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        new_traders = await orchestrator._discover_traders()
+        
+        # Should only return the new trader
+        assert len(new_traders) == 1
+        assert "0xNEW" in new_traders
+        assert "0xEXISTING" not in new_traders
+
+    @pytest.mark.asyncio
+    async def test_analyze_trader_no_trades(self, orchestrator):
+        """Test analyzing a trader with no trades."""
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=[])
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        result = await orchestrator._analyze_trader("0x1234")
+        
+        assert result.trader_address == "0x1234"
+        assert result.is_suitable is False
+
+    @pytest.mark.asyncio
+    async def test_analyze_trader_bot_filtered(self, orchestrator):
+        """Test that bot traders are filtered out."""
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        from bot_filtering import BotFilterResult
+        
+        # Create many rapid trades to trigger HFT detection
+        base_time = datetime.utcnow()
+        mock_trades = [
+            Trade(
+                trade_id=f"t{i}",
+                market_id="m1",
+                trader_address="0xBOT",
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.5,
+                total_value=0.5,
+                timestamp=base_time,  # All at same time = HFT
+                outcome="YES",
+            )
+            for i in range(50)
+        ]
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        result = await orchestrator._analyze_trader("0xBOT")
+        
+        # Should be flagged as bot
+        assert result.bot_filter_result.get("is_bot") or "bot" in " ".join(result.rejection_reasons).lower()
+
+    @pytest.mark.asyncio
+    async def test_analyze_trader_suitable(self, orchestrator):
+        """Test analyzing a suitable trader."""
+        from datetime import datetime, timedelta
+        from api_clients.base import Trade, OrderSide
+        
+        # Create realistic trading pattern
+        base_time = datetime.utcnow() - timedelta(days=30)
+        mock_trades = []
+        for i in range(20):
+            time_offset = timedelta(hours=i * 12)  # 12 hours between trades
+            is_win = i % 3 != 0  # 66% win rate
+            price = 0.6 if is_win else 0.4
+            
+            mock_trades.append(Trade(
+                trade_id=f"t{i}",
+                market_id=f"m{i % 5}",
+                trader_address="0xGOOD",
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=price,
+                total_value=price,
+                timestamp=base_time + time_offset,
+                outcome="YES",
+            ))
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        result = await orchestrator._analyze_trader("0xGOOD")
+        
+        # Should be suitable based on good performance
+        assert result.trader_address == "0xGOOD"
+
+    @pytest.mark.asyncio
+    async def test_add_trader_max_limit(self, orchestrator):
+        """Test adding trader when at max limit."""
+        # Fill up copied traders
+        for i in range(orchestrator.config.max_traders_to_copy):
+            orchestrator.state.copied_traders[f"0x{i:04d}"] = TraderCopyConfig(
+                trader_address=f"0x{i:04d}"
+            )
+        
+        mock_result = TraderAnalysisResult(
+            trader_address="0xNEW",
+            is_suitable=True,
+            recommended_position_size=100.0,
+        )
+        
+        result = await orchestrator._add_trader_to_copy("0xNEW", mock_result)
+        
+        assert result.success is False
+        assert "maximum" in result.message.lower()
+
+
+class TestPositionSizing:
+    """Tests for position sizing methods."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    def test_position_size_fixed_amount(self, orchestrator):
+        """Test fixed amount position sizing."""
+        orchestrator.config.copy_trading.position_sizing_method = "fixed_amount"
+        orchestrator.config.copy_trading.base_position_size = 500.0
+        
+        mock_result = Mock()
+        mock_result.confidence_score = 0.8
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        assert size == 500.0
+
+    def test_position_size_percentage(self, orchestrator):
+        """Test percentage-based position sizing."""
+        orchestrator.config.copy_trading.position_sizing_method = "percentage"
+        orchestrator.config.copy_trading.position_size_pct = 0.10
+        orchestrator.state.total_pnl = 0.0
+        
+        mock_result = Mock()
+        mock_result.confidence_score = 0.8
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        assert size == 10000.0 * 0.10  # Initial balance * 10%
+
+    def test_position_size_scaled(self, orchestrator):
+        """Test scaled position sizing by confidence."""
+        orchestrator.config.copy_trading.position_sizing_method = "scaled"
+        orchestrator.config.copy_trading.position_size_pct = 0.10
+        orchestrator.state.total_pnl = 0.0
+        
+        mock_result = Mock()
+        mock_result.confidence_score = 0.5  # Low confidence
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        expected = 10000.0 * 0.10 * 0.75  # 50% conf = 0.75 multiplier
+        assert size == expected
+
+    def test_position_size_scaled_high_confidence(self, orchestrator):
+        """Test scaled position sizing with high confidence."""
+        orchestrator.config.copy_trading.position_sizing_method = "scaled"
+        orchestrator.config.copy_trading.position_size_pct = 0.10
+        orchestrator.state.total_pnl = 0.0
+        
+        mock_result = Mock()
+        mock_result.confidence_score = 1.0  # High confidence
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        expected = 10000.0 * 0.10 * 1.0  # 100% conf = 1.0 multiplier
+        assert size == expected
+
+    def test_position_size_kelly(self, orchestrator):
+        """Test Kelly criterion position sizing."""
+        orchestrator.config.copy_trading.position_sizing_method = "kelly"
+        orchestrator.config.copy_trading.kelly_fraction = 0.25
+        orchestrator.state.total_pnl = 0.0
+        
+        mock_result = Mock()
+        mock_result.performance.win_rate = 0.60
+        mock_result.performance.avg_win = 100.0
+        mock_result.performance.avg_loss = 50.0
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        # Kelly formula: (PL_ratio * win_rate - (1 - win_rate)) / PL_ratio
+        # = (2.0 * 0.60 - 0.40) / 2.0 = 0.40
+        # Fractional Kelly: 0.40 * 0.25 = 0.10
+        expected = 10000.0 * 0.10
+        assert size == pytest.approx(expected)
+
+    def test_position_size_kelly_negative(self, orchestrator):
+        """Test Kelly with losing strategy returns zero."""
+        orchestrator.config.copy_trading.position_sizing_method = "kelly"
+        orchestrator.config.copy_trading.kelly_fraction = 0.25
+        orchestrator.state.total_pnl = 0.0
+        
+        mock_result = Mock()
+        mock_result.performance.win_rate = 0.30  # Losing strategy
+        mock_result.performance.avg_win = 50.0
+        mock_result.performance.avg_loss = 100.0
+        
+        size = orchestrator._calculate_position_size(mock_result)
+        assert size == 0.0
+
+
+class TestTraderMonitoring:
+    """Tests for copied trader monitoring."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    @pytest.mark.asyncio
+    async def test_monitor_copied_traders_no_auto_remove(self, orchestrator):
+        """Test monitoring with auto_remove disabled."""
+        # Add copied trader with auto_remove disabled
+        orchestrator.state.copied_traders["0x1234"] = TraderCopyConfig(
+            trader_address="0x1234",
+            auto_remove_if_performance_drops=False,
+        )
+        
+        # Should not attempt to remove
+        await orchestrator._monitor_copied_traders()
+        
+        assert "0x1234" in orchestrator.state.copied_traders
+
+    @pytest.mark.asyncio
+    async def test_monitor_copied_traders_removes_underperformer(self, orchestrator):
+        """Test monitoring removes underperforming traders."""
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        
+        # Add copied trader with auto_remove enabled
+        orchestrator.state.copied_traders["0xUNDERPERFORM"] = TraderCopyConfig(
+            trader_address="0xUNDERPERFORM",
+            auto_remove_if_performance_drops=True,
+            min_performance_threshold=0.50,
+        )
+        
+        # Create losing trades
+        mock_trades = [
+            Trade(
+                trade_id=f"t{i}",
+                market_id="m1",
+                trader_address="0xUNDERPERFORM",
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.3,  # Low price = losing for YES
+                total_value=0.3,
+                timestamp=datetime.utcnow(),
+                outcome="YES",
+            )
+            for i in range(5)
+        ]
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        await orchestrator._monitor_copied_traders()
+        
+        # Trader should be removed due to poor performance
+        assert "0xUNDERPERFORM" not in orchestrator.state.copied_traders
+
+    @pytest.mark.asyncio
+    async def test_monitor_copied_traders_keeps_good_trader(self, orchestrator):
+        """Test monitoring keeps good performing traders."""
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        
+        # Add copied trader
+        orchestrator.state.copied_traders["0xGOOD"] = TraderCopyConfig(
+            trader_address="0xGOOD",
+            auto_remove_if_performance_drops=True,
+            min_performance_threshold=0.30,
+        )
+        
+        # Create winning trades
+        mock_trades = [
+            Trade(
+                trade_id=f"t{i}",
+                market_id="m1",
+                trader_address="0xGOOD",
+                side=OrderSide.BUY,
+                quantity=1.0,
+                price=0.7,  # High price = winning for YES
+                total_value=0.7,
+                timestamp=datetime.utcnow(),
+                outcome="YES",
+            )
+            for i in range(5)
+        ]
+        
+        mock_client = AsyncMock()
+        mock_client.get_trades = AsyncMock(return_value=mock_trades)
+        orchestrator.api_clients[MarketPlatform.POLYMARKET] = mock_client
+        
+        await orchestrator._monitor_copied_traders()
+        
+        # Trader should be kept
+        assert "0xGOOD" in orchestrator.state.copied_traders
+
+
+class TestCopyTradeExecution:
+    """Tests for copy trade execution."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    @pytest.mark.asyncio
+    async def test_execute_copy_trade_disabled(self, orchestrator):
+        """Test that disabled traders don't get copied."""
+        from datetime import datetime
+        from api_clients.base import Trade, OrderSide
+        
+        # Add disabled trader
+        orchestrator.state.copied_traders["0xDISABLED"] = TraderCopyConfig(
+            trader_address="0xDISABLED",
+            enabled=False,
+        )
+        
+        mock_trade = Trade(
+            trade_id="t1",
+            market_id="m1",
+            trader_address="0xDISABLED",
+            side=OrderSide.BUY,
+            quantity=1.0,
+            price=0.6,
+            total_value=0.6,
+            timestamp=datetime.utcnow(),
+            outcome="YES",
+        )
+        
+        # Should not execute
+        await orchestrator._execute_copy_trade("0xDISABLED", mock_trade)
+        
+        # No trade should be executed (state unchanged)
+        assert orchestrator.state.trades_executed == 0
+
+    @pytest.mark.asyncio
+    async def test_should_copy_trade_default(self, orchestrator):
+        """Test default copy trade decision."""
+        from api_clients.base import Trade, OrderSide
+        from datetime import datetime
+        
+        trade = Trade(
+            trade_id="t1",
+            market_id="m1",
+            trader_address="0x1234",
+            side=OrderSide.BUY,
+            quantity=1.0,
+            price=0.6,
+            total_value=0.6,
+            timestamp=datetime.utcnow(),
+            outcome="YES",
+        )
+        
+        # Default should copy in sandbox
+        should_copy = orchestrator._should_copy_trade("0x1234", trade)
+        assert should_copy is True
+
+
+class TestPerformanceMetrics:
+    """Tests for performance metrics tracking."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    def test_update_performance_metrics_no_runner(self, orchestrator):
+        """Test performance update without sandbox runner."""
+        orchestrator.config.mode = TradingMode.LIVE
+        
+        # Should not raise
+        import asyncio
+        asyncio.run(orchestrator._update_performance_metrics())
+        
+        # State should be unchanged
+        assert orchestrator.state.total_pnl == 0.0
+
+    @pytest.mark.asyncio
+    async def test_update_performance_metrics_with_runner(self, orchestrator):
+        """Test performance update with sandbox runner."""
+        # Set up market data callback first
+        orchestrator.trading_runner.set_market_data_callback(lambda mid: {
+            "market_id": mid,
+            "current_price": 0.5,
+            "previous_price": 0.5,
+            "volatility": 0.02,
+        })
+        
+        # Execute some trades in sandbox
+        from sandbox import VirtualOrder
+        
+        order = VirtualOrder(
+            order_id="test_001",
+            market_id="test_market",
+            side="buy",
+            quantity=100.0,
+            order_type="market",
+            outcome="YES",
+        )
+        result = await orchestrator.trading_runner.execute_order(order)
+        
+        # Call update - should not raise and should update metrics
+        await orchestrator._update_performance_metrics()
+        
+        # Verify method completed successfully
+        assert orchestrator.state is not None
+
+
+class TestErrorRecovery:
+    """Tests for error recovery mechanisms."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+        )
+        return CopyCatOrchestrator(config=config)
+
+    def test_circuit_breaker_opens(self, orchestrator):
+        """Test circuit breaker opens after threshold failures."""
+        orchestrator.config.error_recovery.circuit_breaker_enabled = True
+        orchestrator.config.error_recovery.circuit_breaker_threshold = 3
+        
+        # Simulate failures
+        orchestrator.state.consecutive_failures = 3
+        orchestrator._check_circuit_breaker()
+        
+        assert orchestrator.state.circuit_breaker_open is True
+
+    def test_circuit_breaker_closes(self, orchestrator):
+        """Test circuit breaker closes after successful operation."""
+        orchestrator.config.error_recovery.circuit_breaker_enabled = True
+        
+        # Open circuit breaker
+        orchestrator.state.circuit_breaker_open = True
+        orchestrator.state.consecutive_failures = 3
+        orchestrator._check_circuit_breaker()
+        
+        # Successful operation
+        orchestrator.state.consecutive_failures = 0
+        orchestrator._check_circuit_breaker()
+        
+        assert orchestrator.state.circuit_breaker_open is False
+
+
+class TestHealthChecks:
+    """Tests for health check functionality."""
+
+    @pytest.fixture
+    def orchestrator(self):
+        """Create orchestrator instance for testing."""
+        config = OrchestratorConfig(
+            mode=TradingMode.SANDBOX,
+            platform=MarketPlatform.POLYMARKET,
+            health_check=HealthCheckConfig(enabled=True, api_client_check=True),
+        )
+        return CopyCatOrchestrator(config=config)
+
+    @pytest.mark.asyncio
+    async def test_health_check_disabled(self, orchestrator):
+        """Test health check when disabled."""
+        orchestrator.config.health_check.api_client_check = False
+        
+        result = await orchestrator._check_api_health()
+        
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_health_check_no_client(self, orchestrator):
+        """Test health check with no API client."""
+        orchestrator.api_clients = {}
+        
+        result = await orchestrator._check_api_health()
+        
+        assert result is False
+        assert orchestrator.state.api_healthy is False
 
 
 class TestOrchestratorCLI:

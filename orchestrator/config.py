@@ -85,6 +85,22 @@ class SandboxConfigOrchestrator:
 
 
 @dataclass
+class LiveConfig:
+    """Configuration for live trading (when mode is LIVE)."""
+    wallet_address: str = ""
+    initial_balance: float = 10000.0
+    max_position_size_pct: float = 0.10
+    max_total_exposure_pct: float = 0.50
+    max_orders_per_day: int = 50
+    min_order_size: float = 1.0
+    require_order_confirmation: bool = True
+    max_slippage_pct: float = 0.05
+    enable_price_protection: bool = True
+    dry_run_before_execution: bool = True  # Simulate before executing
+    confirm_large_orders: float = 1000.0  # Require confirmation for orders > $1000
+
+
+@dataclass
 class HealthCheckConfig:
     """Configuration for health checks."""
     enabled: bool = True
@@ -144,6 +160,9 @@ class OrchestratorConfig:
 
     # Sandbox (when mode is SANDBOX)
     sandbox: SandboxConfigOrchestrator = field(default_factory=SandboxConfigOrchestrator)
+
+    # Live Trading (when mode is LIVE)
+    live: LiveConfig = field(default_factory=LiveConfig)
 
     # Health & Recovery
     health_check: HealthCheckConfig = field(default_factory=HealthCheckConfig)

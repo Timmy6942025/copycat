@@ -10,6 +10,9 @@ import sys
 from datetime import datetime, timedelta
 
 from sandbox.backtest import BacktestEngine, BacktestConfig
+from sandbox.runner import SandboxRunner
+from sandbox.config import SandboxConfig
+from sandbox.dashboard import run_dashboard
 
 
 class SandboxManager:
@@ -77,6 +80,41 @@ class SandboxManager:
         print(f"Generating report at {output_path}...")
         print("Report generated (placeholder)")
 
+    async def run_dashboard(
+        self,
+        mode: str = "realtime",
+        initial_balance: float = 10000.0,
+        dashboard_mode: str = "rich",
+        refresh_interval: float = 1.0
+    ):
+        """Run the TUI dashboard."""
+        print(f"Starting sandbox dashboard in {mode} mode...")
+        print(f"Initial balance: ${initial_balance:,.2f}")
+        print(f"Dashboard mode: {dashboard_mode}")
+        print(f"Refresh interval: {refresh_interval}s")
+        print("\nPress 'q' to quit, '1-5' to switch views\n")
+
+        # Initialize runner with config
+        config = SandboxConfig(
+            initial_balance=initial_balance,
+            mode=mode.upper()
+        )
+        runner = SandboxRunner(config)
+
+        # Set up fallback market data if not in realtime mode
+        if mode != "realtime":
+            def get_market_data(market_id: str):
+                return {
+                    "market_id": market_id,
+                    "current_price": 0.5 + hash(market_id) % 50 / 100,
+                    "previous_price": 0.5,
+                    "volatility": 0.02,
+                }
+            runner.set_market_data_callback(get_market_data)
+
+        # Run the dashboard
+        await run_dashboard(runner, mode=dashboard_mode, refresh_interval=refresh_interval)
+
 
 class SandboxCLI:
     """
@@ -93,7 +131,7 @@ class SandboxCLI:
         )
         parser.add_argument(
             'command',
-            choices=['start', 'stop', 'status', 'report', 'backtest'],
+            choices=['start', 'stop', 'status', 'report', 'backtest', 'dashboard'],
             help='Command to execute'
         )
         parser.add_argument(
@@ -132,6 +170,18 @@ class SandboxCLI:
             default=datetime.utcnow().strftime('%Y-%m-%d'),
             help='Backtest end date (YYYY-MM-DD)'
         )
+        parser.add_argument(
+            '--dashboard-mode',
+            choices=['rich', 'simple'],
+            default='rich',
+            help='Dashboard display mode (rich=full TUI, simple=basic output)'
+        )
+        parser.add_argument(
+            '--refresh',
+            type=float,
+            default=1.0,
+            help='Dashboard refresh interval in seconds (default: 1.0)'
+        )
 
         args = parser.parse_args()
 
@@ -159,6 +209,13 @@ class SandboxCLI:
             ))
         elif args.command == 'report':
             self.sandbox_manager.generate_report(output_path=args.output)
+        elif args.command == 'dashboard':
+            asyncio.run(self.sandbox_manager.run_dashboard(
+                mode=args.mode,
+                initial_balance=args.balance,
+                dashboard_mode=args.dashboard_mode,
+                refresh_interval=args.refresh
+            ))
 
 
 def main():

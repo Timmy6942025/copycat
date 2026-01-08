@@ -52,7 +52,7 @@ def test_sandbox_runner_import():
         return False
 
 
-async def test_sandbox_runner_basic():
+async def _async_test_sandbox_runner_basic():
     """Test basic sandbox runner functionality without external APIs."""
     print("\n" + "=" * 60)
     print("Testing Sandbox Runner (Fallback Mode)")
@@ -111,16 +111,21 @@ async def test_sandbox_runner_basic():
         print(f"\nReport saved to: {report}")
 
         print("\n✓ Sandbox runner test passed!")
-        return True
+        assert True  # Convert return to assertion for pytest
 
     except Exception as e:
         print(f"\n✗ Sandbox runner test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False
 
 
-async def test_realtime_data_feed():
+def test_sandbox_runner_basic():
+    """Test basic sandbox runner functionality without external APIs."""
+    asyncio.run(_async_test_sandbox_runner_basic())
+
+
+async def _async_test_realtime_data_feed():
     """Test real-time data feed with simulated data."""
     print("\n" + "=" * 60)
     print("Testing Real-Time Data Feed (Simulated)")
@@ -169,17 +174,22 @@ async def test_realtime_data_feed():
         await feed.stop()
 
         print("\n✓ Real-time data feed test passed!")
-        return True
+        assert True
 
     except Exception as e:
         print(f"\n✗ Real-time data feed test failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False
 
     finally:
         if feed.get_state().status.value != "stopped":
             await feed.stop()
+
+
+def test_realtime_data_feed():
+    """Test real-time data feed with simulated data."""
+    asyncio.run(_async_test_realtime_data_feed())
 
 
 async def main():
