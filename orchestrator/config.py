@@ -43,28 +43,21 @@ class TraderSelectionConfig:
     
     def __init__(
         self,
-        # Selection mode
-        mode: SelectionMode = SelectionMode.GROWTH,  # Use growth by default
-        
-        # Win-rate mode settings (used when mode=WIN_RATE)
+        mode: SelectionMode = SelectionMode.GROWTH,
         min_win_rate: float = 0.55,
         min_trades: int = 10,
         max_drawdown: float = 0.25,
         min_sharpe_ratio: float = 0.5,
         min_profit_factor: float = 1.0,
         min_total_pnl: float = 0.0,
-        max_avg_hold_time_hours: float = 168.0,  # 1 week
+        max_avg_hold_time_hours: float = 168.0,
         min_reputation_score: float = 0.5,
-        
-        # Growth mode settings (used when mode=GROWTH)
-        growth_min_total_pnl: float = 100.0,  # At least $100 profit
-        growth_min_growth_rate: float = 0.01,  # At least 1% per trade
-        growth_max_drawdown: float = 0.50,  # Allow up to 50% drawdown
-        growth_min_equity_slope: float = 0.0005,  # Positive trend required
-        growth_min_consistency: float = 0.25,  # Reasonable consistency
-        growth_min_active_days: int = 3,  # At least 3 days of activity
-        
-        # Weights for growth scoring
+        growth_min_total_pnl: float = 25.0,
+        growth_min_growth_rate: float = 0.005,
+        growth_max_drawdown: float = 0.65,
+        growth_min_equity_slope: float = 0.0001,
+        growth_min_consistency: float = 0.15,
+        growth_min_active_days: int = 1,
         growth_weight: float = 0.50,
         consistency_weight: float = 0.25,
         stability_weight: float = 0.25,
@@ -199,13 +192,13 @@ class BoostModeConfig:
     This helps accounts grow faster from small starting amounts (e.g., < $500)
     to reach a sustainable trading size more quickly.
     """
-    enabled: bool = False  # Toggle boost mode on/off
-    balance_threshold: float = 500.0  # Max balance to apply boost mode
-    position_multiplier: float = 2.0  # Multiply position sizes when in boost mode
-    max_boost_position_pct: float = 0.25  # Max 25% per trade even in boost mode
+    enabled: bool = True  # ENABLED by default for small account growth
+    balance_threshold: float = 100.0  # Max balance to apply boost mode ($10-$100)
+    position_multiplier: float = 2.5  # 2.5x position sizes for maximum growth
+    max_boost_position_pct: float = 0.40  # Max 40% per trade in boost mode
     prefer_quick_resolve: bool = True  # Prioritize faster-resolving markets
-    quick_resolve_threshold_hours: float = 168.0  # Consider "quick" if resolves within 7 days
-    quick_resolve_multiplier: float = 1.5  # Additional multiplier for quick-resolving markets
+    quick_resolve_threshold_hours: float = 72.0  # Consider "quick" if resolves within 3 days
+    quick_resolve_multiplier: float = 2.0  # 2x additional multiplier for quick-resolving markets
 
 
 @dataclass
@@ -241,14 +234,14 @@ class OrchestratorConfig:
     boost_mode: BoostModeConfig = field(default_factory=BoostModeConfig)
 
     # Trading Constraints
-    max_traders_to_copy: int = 10
-    min_trader_reanalysis_interval_hours: float = 24.0
-    max_traders_to_analyze_per_cycle: int = 100
+    max_traders_to_copy: int = 5  # Fewer traders for small accounts (was 10)
+    min_trader_reanalysis_interval_hours: float = 6.0  # Faster reanalysis (was 24)
+    max_traders_to_analyze_per_cycle: int = 200  # Analyze more per cycle
 
-    # Data Refresh
-    market_data_refresh_interval_seconds: float = 60.0
-    trader_data_refresh_interval_seconds: float = 300.0  # 5 minutes
-    trade_history_days: int = 30
+    # Data Refresh - FASTER cycles for small accounts
+    market_data_refresh_interval_seconds: float = 10.0  # 10 seconds (was 60)
+    trader_data_refresh_interval_seconds: float = 10.0  # 10 seconds (was 300 - 30x faster)
+    trade_history_days: int = 30  # Keep for backward compatibility
 
     # Logging
     log_level: str = "INFO"
