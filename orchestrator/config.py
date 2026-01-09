@@ -247,6 +247,10 @@ class OrchestratorConfig:
     log_level: str = "INFO"
     log_file: Optional[str] = None
 
+    # Auto Mode Transition
+    auto_mode_transition: bool = True  # Enable/disable automatic mode transitions
+    mode_transition_check_interval_cycles: int = 1  # Check every N cycles
+
 
 @dataclass
 class TraderCopyConfig:

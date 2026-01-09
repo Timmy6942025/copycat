@@ -41,6 +41,7 @@ from .config import (
     TraderAnalysisResult,
     SelectionMode,
 )
+from .mode_transition import ModeTransitionManager, TradingModeLevel
 
 
 logging.basicConfig(level=logging.INFO)
@@ -82,6 +83,9 @@ class CopyCatOrchestrator:
         
         # Initialize sandbox/live runner
         self._init_trading_runner()
+        
+        # Initialize mode transition manager
+        self._init_mode_transition_manager()
         
         # Health check and recovery
         self._health_check_task: Optional[asyncio.Task] = None
@@ -176,6 +180,7 @@ class CopyCatOrchestrator:
     def _init_trading_runner(self):
         """Initialize the trading runner (sandbox with real data or live trading)."""
         from live_trading import LiveTradingRunner, LiveTradingConfig
+        from sandbox import SandboxRunner, SandboxConfig
         
         if self.config.mode.value == "sandbox":
             # Sandbox runner with real market data from APIs
@@ -308,6 +313,43 @@ class CopyCatOrchestrator:
     def _get_api_client(self) -> MarketAPIClient:
         """Get the primary API client based on platform configuration."""
         return self.api_clients.get(self.config.platform)
+    
+    def _init_mode_transition_manager(self):
+        """Initialize the mode transition manager for automatic mode switching."""
+        if not self.config.auto_mode_transition:
+            self.mode_transition_manager: Optional[ModeTransitionManager] = None
+            logger.info("Auto mode transition is disabled")
+            return
+        
+        self.mode_transition_manager = ModeTransitionManager(
+            orchestrator=self,
+        )
+        logger.info(
+            f"Mode transition manager initialized: "
+            f"current_mode={self.mode_transition_manager.current_mode.value}"
+        )
+    
+    def _apply_mode_config(self, mode: TradingModeLevel):
+        """Apply configuration changes when mode transitions occur."""
+        mode_configs = {
+            TradingModeLevel.NANO: (0.75, 0.75, 0.30),
+            TradingModeLevel.MICRO: (0.60, 0.75, 0.25),
+            TradingModeLevel.MINI: (0.50, 0.50, 0.20),
+            TradingModeLevel.BALANCED: (0.40, 0.40, 0.18),
+            TradingModeLevel.AGGRESSIVE: (0.35, 0.35, 0.15),
+            TradingModeLevel.CONSERVATIVE: (0.25, 0.25, 0.12),
+        }
+        
+        position_pct, kelly, max_dd = mode_configs.get(mode, mode_configs[TradingModeLevel.NANO])
+        
+        self.config.copy_trading.position_size_pct = position_pct
+        self.config.copy_trading.kelly_fraction = kelly
+        self.config.trader_selection.growth_max_drawdown = max_dd
+        
+        logger.info(
+            f"Applied {mode.value} mode config: "
+            f"position={position_pct:.0%}, kelly={kelly:.2f}, max_dd={max_dd:.0%}"
+        )
 
     # =========================================================================
     # Lifecycle Methods
@@ -553,6 +595,13 @@ class CopyCatOrchestrator:
             
             # Step 5: Update performance metrics
             await self._update_performance_metrics()
+            
+            # Step 6: Check for mode transitions
+            if self.mode_transition_manager:
+                if self.state.cycle_count % self.config.mode_transition_check_interval_cycles == 0:
+                    transition = await self.mode_transition_manager.check_transition()
+                    if transition:
+                        self._apply_mode_config(transition.to_mode)
             
             logger.info(f"Trading cycle {self.state.cycle_count} completed")
             return OrchestrationResult(
@@ -1103,7 +1152,7 @@ class CopyCatOrchestrator:
 
     def get_status(self) -> Dict[str, Any]:
         """Get orchestrator status summary."""
-        return {
+        status = {
             "is_running": self.state.is_running,
             "is_paused": self.state.is_paused,
             "mode": self.config.mode.value,
@@ -1123,6 +1172,16 @@ class CopyCatOrchestrator:
             ),
             "cycle_count": self.state.cycle_count,
         }
+        
+        # Add mode transition status
+        if self.mode_transition_manager:
+            status["mode_transition"] = self.mode_transition_manager.get_status()
+            status["auto_mode_transition"] = self.config.auto_mode_transition
+        else:
+            status["auto_mode_transition"] = self.config.auto_mode_transition
+            status["mode_transition"] = {"enabled": False}
+        
+        return status
 
     # Helper methods
 
