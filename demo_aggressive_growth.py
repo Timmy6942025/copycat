@@ -81,6 +81,9 @@ async def main():
     print(f"  Max Traders: {config.max_traders_to_copy}")
     print(f"  Min Win Rate: {config.trader_selection.min_win_rate:.0%}")
     print(f"  Sizing Method: {config.copy_trading.position_sizing_method}")
+    print(f"  Quick Resolve: {config.boost_mode.prefer_quick_resolve}")
+    print(f"  Quick Threshold: {config.boost_mode.quick_resolve_threshold_hours}h")
+    print(f"  Quick Multiplier: x{config.boost_mode.quick_resolve_multiplier}")
     
     if not args.live:
         print(f"\nSandbox Balance: ${config.sandbox.initial_balance:,.2f}")

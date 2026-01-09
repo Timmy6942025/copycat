@@ -186,19 +186,26 @@ class BoostModeConfig:
 
     When enabled and account balance is below the threshold:
     - Position sizes are increased to accelerate growth
-    - Trades on markets resolving sooner can get larger allocations
+    - Trades on markets resolving sooner get additional multiplier
+    - Markets resolving > threshold hours are skipped
     - Once balance exceeds threshold, returns to normal behavior
+
+    Quick Resolve Prioritization (IMPLEMENTED):
+    - Fetches market end dates from Polymarket Gamma API
+    - Caches results to avoid redundant API calls
+    - Applies quick_resolve_multiplier (2x) to markets within threshold
+    - Skips trades in markets beyond threshold to accelerate capital turnover
 
     This helps accounts grow faster from small starting amounts (e.g., < $500)
     to reach a sustainable trading size more quickly.
     """
-    enabled: bool = True  # ENABLED by default for small account growth
-    balance_threshold: float = 100.0  # Max balance to apply boost mode ($10-$100)
-    position_multiplier: float = 2.5  # 2.5x position sizes for maximum growth
-    max_boost_position_pct: float = 0.40  # Max 40% per trade in boost mode
-    prefer_quick_resolve: bool = True  # Prioritize faster-resolving markets
-    quick_resolve_threshold_hours: float = 72.0  # Consider "quick" if resolves within 3 days
-    quick_resolve_multiplier: float = 2.0  # 2x additional multiplier for quick-resolving markets
+    enabled: bool = True
+    balance_threshold: float = 100.0
+    position_multiplier: float = 2.5
+    max_boost_position_pct: float = 0.40
+    prefer_quick_resolve: bool = True
+    quick_resolve_threshold_hours: float = 72.0
+    quick_resolve_multiplier: float = 2.0
 
 
 @dataclass

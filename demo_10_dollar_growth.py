@@ -126,11 +126,12 @@ def print_key_optimizations():
     print("🔧 KEY OPTIMIZATIONS FOR $10 GROWTH")
     print("=" * 80)
     
-    print("""
-    1. BOOST MODE ENABLED BY DEFAULT
-       - 3x position multiplier for accounts under $25
-       - 75% max position size (vs 25% default)
-       - Prioritize quick-resolving markets (2x multiplier)
+     print("""
+     1. BOOST MODE ENABLED BY DEFAULT
+        - 3x position multiplier for accounts under $25
+        - 75% max position size (vs 25% default)
+        - Prioritize quick-resolving markets (2x additional multiplier)
+        - Skip trades in markets resolving > 48 hours away
     
     2. LENIENT TRADER QUALIFICATION
        - Min P&L: $10 (vs $100 default) - 10x easier
