@@ -54,11 +54,11 @@ class TestOrchestratorConfig:
         """Test live mode configuration."""
         config = OrchestratorConfig(
             mode=TradingMode.LIVE,
-            platform=MarketPlatform.KALSHI
+            platform=MarketPlatform.POLYMARKET
         )
         
         assert config.mode == TradingMode.LIVE
-        assert config.platform == MarketPlatform.KALSHI
+        assert config.platform == MarketPlatform.POLYMARKET
 
     def test_trader_selection_config(self):
         """Test trader selection configuration."""

@@ -511,23 +511,6 @@ class TestVirtualOrderExecutor:
         expected_fee = 100 * 0.50 * (0.02 - min(0.015, 50000/100000))
         assert fees == pytest.approx(expected_fee, rel=0.01)
 
-    def test_calculate_fees_kalshi(self):
-        """Test Kalshi fee calculation."""
-        self.config.fee_model = "kalshi"
-        order = VirtualOrder(
-            order_id="test_019",
-            market_id="market_123",
-            side="buy",
-            quantity=100.0,
-            order_type="market"
-        )
-
-        fees = self.executor._calculate_fees(order, execution_price=0.50)
-
-        # Kalshi has 2% flat fee
-        expected_fee = 100 * 0.50 * 0.02
-        assert fees == expected_fee
-
     def test_calculate_fees_default(self):
         """Test default fee model."""
         self.config.fee_model = "unknown"

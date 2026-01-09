@@ -412,16 +412,16 @@ class LiveTradingRunner:
 
 
 def create_live_runner(
-    platform: str = "polymarket",
-    api_key: str = None,
-    wallet_address: str = None,
+    platform: str,
+    api_key: Optional[str] = None,
+    wallet_address: str = "",
     initial_balance: float = 10000.0,
 ) -> LiveTradingRunner:
     """
     Factory function to create a live trading runner.
     
     Args:
-        platform: 'polymarket' or 'kalshi'
+        platform: 'polymarket'
         api_key: API key for the platform
         wallet_address: Wallet address for the trader
         initial_balance: Starting balance
@@ -429,15 +429,13 @@ def create_live_runner(
     Returns:
         Configured LiveTradingRunner
     """
-    from api_clients import PolymarketAPIClient, KalshiAPIClient
+    from api_clients import PolymarketAPIClient
     
     config = LiveTradingConfig(initial_balance=initial_balance)
     
     # Create API client
     if platform.lower() == "polymarket":
         api_client = PolymarketAPIClient(api_key=api_key)
-    elif platform.lower() == "kalshi":
-        api_client = KalshiAPIClient(api_key=api_key)
     else:
         raise ValueError(f"Unknown platform: {platform}")
     

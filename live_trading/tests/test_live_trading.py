@@ -347,15 +347,6 @@ class TestCreateLiveRunner:
         assert runner.config.initial_balance == 25000.0
         assert runner.wallet_address == "0x123"
 
-    def test_create_kalshi_runner(self):
-        """Test creating Kalshi live runner."""
-        runner = create_live_runner(
-            platform="kalshi",
-            wallet_address="0x456",
-        )
-        
-        assert isinstance(runner, LiveTradingRunner)
-
     def test_invalid_platform(self):
         """Test creating runner with invalid platform."""
         with pytest.raises(ValueError):

@@ -222,30 +222,6 @@ class TestPolymarketClient:
         assert polymarket_client.clob is None
 
 
-class TestKalshiClient:
-    """Test Kalshi API client."""
-
-    @pytest.fixture
-    def kalshi_client(self):
-        """Create a Kalshi client for testing."""
-        from api_clients.kalshi import KalshiAPIClient
-        return KalshiAPIClient(api_key="test-key")
-
-    def test_platform_name(self, kalshi_client):
-        """Test platform name."""
-        assert kalshi_client.platform_name == "kalshi"
-
-    def test_client_initialization(self, kalshi_client):
-        """Test client initialization."""
-        assert kalshi_client.api_key == "test-key"
-        assert kalshi_client.demo is False
-
-    def test_rate_limit_set(self, kalshi_client):
-        """Test rate limit is set on initialization."""
-        # Basic tier should be 20 req/s
-        assert kalshi_client._rate_limit_delay == pytest.approx(0.05, abs=0.01)
-
-
 # Test fixtures for mock data
 @pytest.fixture
 def sample_trades():

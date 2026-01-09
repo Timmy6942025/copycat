@@ -259,14 +259,9 @@ class VirtualOrderExecutor:
         if self.config.fee_model == "polymarket":
             fee_rate = 0.0
             flat_fee = 0.01  # 1 cent per trade
-        elif self.config.fee_model == "kalshi":
+        else:
             fee_rate = 0.0
-            flat_fee = 0.02  # 2 cents per trade
-
-        total_value = order.quantity
-        fees = total_value * fee_rate + flat_fee
-
-        return min(fees, total_value * 0.01)  # Cap at 1%
+            flat_fee = 0.01  # Default 1 cent per trade
 
     def _calculate_slippage(
         self,

@@ -1,6 +1,6 @@
 # Sandbox Simulation Report
 
-**Generated:** 2026-01-09 08:00:43 UTC
+**Generated:** 2026-01-09 12:19:39 UTC
 **Simulation Period:** 2026-01-09 to 2026-01-09
 **Duration:** 1 days
 
@@ -62,8 +62,8 @@
 | Average Win | $0.00 |
 | Average Loss | $0.00 |
 | Win/Loss Ratio | inf |
-| Average Position Size | $78.00 |
-| Maximum Position Size | $82.00 |
+| Average Position Size | $82.67 |
+| Maximum Position Size | $95.00 |
 | Average Hold Time | 0.0 hours |
 
 ---
@@ -91,8 +91,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Average Slippage | 0.0130 |
-| Total Fees Paid | $4.68 |
+| Average Slippage | 0.0124 |
+| Total Fees Paid | $4.96 |
 | Fill Rate | 95.00% |
 | Partial Fill Rate | 5.00% |
 

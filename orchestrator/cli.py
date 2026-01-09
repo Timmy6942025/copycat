@@ -38,7 +38,7 @@ class OrchestratorCLI:
     def run(self):
         """Run the CLI."""
         parser = argparse.ArgumentParser(
-            description="CopyCat - Polymarket/Kalshi Copy Trading Bot",
+            description="CopyCat - Polymarket Copy Trading Bot",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
@@ -72,7 +72,7 @@ Examples:
 
         parser.add_argument(
             "--platform",
-            choices=["polymarket", "kalshi"],
+            choices=["polymarket"],
             default="polymarket",
             help="Trading platform (default: polymarket)"
         )
@@ -148,7 +148,7 @@ Examples:
         
         config = OrchestratorConfig(
             mode=TradingMode.SANDBOX if args.mode == "sandbox" else TradingMode.LIVE,
-            platform=MarketPlatform.POLYMARKET if args.platform == "polymarket" else MarketPlatform.KALSHI,
+            platform=MarketPlatform.POLYMARKET,
             trader_selection=TraderSelectionConfig(
                 mode=SelectionMode.GROWTH,  # Default to growth-based selection
             ),

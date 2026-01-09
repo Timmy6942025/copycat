@@ -329,9 +329,6 @@ class VirtualOrderExecutor:
             base_fee_rate = 0.02  # 2% maximum
             volume_discount = min(0.015, order.trader_total_volume_30d / 100000)
             fee_rate = base_fee_rate - volume_discount
-        elif self.config.fee_model == "kalshi":
-            # Kalshi: ~2% flat fee
-            fee_rate = 0.02
         else:
             fee_rate = 0.01  # Default 1%
 

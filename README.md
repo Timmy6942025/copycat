@@ -7,7 +7,7 @@
 ![Tests](https://img.shields.io/badge/Tests-481%2B-passing-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-**Intelligent copy trading system that identifies profitable traders and automatically copies their trades on prediction markets like Polymarket and Kalshi.**
+**Intelligent copy trading system that identifies profitable traders and automatically copies their trades on prediction markets like Polymarket.**
 
 [Features](#features) • [Speed Mode](#speed-mode) • [Architecture](#architecture) • [Testing](#testing)
 
@@ -57,7 +57,7 @@ CopyCat is an intelligent copy trading bot designed for prediction markets. It:
 - Performance monitoring and rebalancing
 
 ### 📊 Sandbox Simulation
-- Real-time market data from Polymarket/Kalshi
+- Real-time market data from Polymarket
 - Realistic order execution with slippage and fees
 - Comprehensive performance analytics
 - Backtesting capabilities
@@ -257,7 +257,7 @@ python -m dashboard.app
 
 | Module | Purpose | Key Classes |
 |--------|---------|-------------|
-| `api_clients` | Market API integrations | `PolymarketAPIClient`, `KalshiAPIClient`, `DataAPIClient` |
+| `api_clients` | Market API integrations | `PolymarketAPIClient`, `DataAPIClient` |
 | `trader_identification` | Analyze trader performance | `TraderIdentificationEngine` |
 | `bot_filtering` | Detect automated traders | `BotFilter` |
 | `sandbox` | Paper trading simulation | `SandboxRunner`, `VirtualPortfolioManager` |
@@ -366,7 +366,6 @@ config = OrchestratorConfig(
 | Value | Description |
 |-------|-------------|
 | `polymarket` | Polymarket prediction market |
-| `kalshi` | Kalshi prediction market |
 
 #### Position Sizing Methods
 | Method | Description |
@@ -433,7 +432,6 @@ copycat/
 │   ├── __init__.py          # Main exports (PolymarketAPIClient, DataAPIClient)
 │   ├── base.py              # Base API client
 │   ├── polymarket.py        # Polymarket API (CLOB, Gamma, Data APIs)
-│   ├── kalshi.py            # Kalshi API
 │   ├── mock.py              # Mock client for testing
 │   ├── data_api.py          # Polymarket Data API client (NEW)
 │   └── tests/
@@ -736,7 +734,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgments
 
 - [Polymarket](https://polymarket.com) for their prediction market API
-- [Kalshi](https://kalshi.com) for market data access
 - All contributors and testers
 - Made with [Mninimax-m2.1](https://huggingface.co/MiniMaxAI/MiniMax-M2.1) with [opencode](https://github.com/anomalyco/opencode) paired with [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)
 

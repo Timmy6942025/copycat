@@ -18,7 +18,6 @@ class TradingMode(Enum):
 class MarketPlatform(Enum):
     """Supported market platforms."""
     POLYMARKET = "polymarket"
-    KALSHI = "kalshi"
 
 
 @dataclass

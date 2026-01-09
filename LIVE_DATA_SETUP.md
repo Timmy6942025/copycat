@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CopyCat sandbox can now use **real-time market data** from Polymarket and Kalshi APIs. This document explains how to set up and use live data.
+The CopyCat sandbox can now use **real-time market data** from Polymarket APIs. This document explains how to set up and use live data.
 
 ## API Requirements
 
@@ -19,16 +19,6 @@ The CopyCat sandbox can now use **real-time market data** from Polymarket and Ka
 **Base URLs:**
 - Gamma API: `https://gamma.polymarket.com`
 - CLOB API: `https://clob.polymarket.com`
-
-### Kalshi
-
-| Feature | API Key Required? | Rate Limit |
-|---------|------------------|------------|
-| Market Data | ❌ No | 100 req/min |
-| Trades | ❌ No | 100 req/min |
-| Positions | ❌ No | 100 req/min |
-
-**Base URL:** `https://api.kalshi.com`
 
 ## Quick Start
 

@@ -13,7 +13,7 @@ from api_clients.base import (
     Trade, Trader, TraderPerformance, MarketData, OrderSide, OrderType,
     MarketAPIClient, Position
 )
-from api_clients import PolymarketAPIClient, KalshiAPIClient
+from api_clients import PolymarketAPIClient
 from api_clients.mock import MockMarketAPIClient
 from trader_identification import TraderIdentificationEngine, TraderSelectionConfig as TISelectionConfig
 from trader_identification.growth_selectors import GrowthBasedSelector, GrowthSelectionConfig
@@ -112,13 +112,10 @@ class CopyCatOrchestrator:
         elif not self.config.api_clients:
             # Default: use Polymarket
             self.api_clients[MarketPlatform.POLYMARKET] = PolymarketAPIClient()
-            self.api_clients[MarketPlatform.KALSHI] = KalshiAPIClient()
         else:
             for client_config in self.config.api_clients:
                 if client_config.platform == MarketPlatform.POLYMARKET:
                     client = PolymarketAPIClient(api_key=client_config.api_key)
-                elif client_config.platform == MarketPlatform.KALSHI:
-                    client = KalshiAPIClient(api_key=client_config.api_key)
                 else:
                     logger.warning(f"Unknown platform: {client_config.platform}")
                     continue

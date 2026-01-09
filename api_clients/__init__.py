@@ -1,6 +1,6 @@
 """
 API Clients module for CopyCat trading bot.
-Provides unified interfaces for Polymarket and Kalshi APIs.
+Provides unified interfaces for Polymarket APIs.
 """
 
 from .base import (
@@ -17,7 +17,6 @@ from .base import (
     OrderStatus,
 )
 from .polymarket import PolymarketAPIClient
-from .kalshi import KalshiAPIClient
 from .mock import MockMarketAPIClient, create_mock_client
 
 __all__ = [
@@ -33,7 +32,6 @@ __all__ = [
     "OrderType",
     "OrderStatus",
     "PolymarketAPIClient",
-    "KalshiAPIClient",
     "MockMarketAPIClient",
     "create_mock_client",
 ]

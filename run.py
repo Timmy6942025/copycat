@@ -15,7 +15,7 @@ Usage:
 Options:
     --balance 100    Starting balance (default: 100)
     --mode balanced  Speed mode: conservative/balanced/aggressive
-    --platform polymarket  Platform: polymarket/kalshi
+    --platform polymarket  Platform: polymarket
 """
 import sys
 import os
