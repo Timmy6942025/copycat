@@ -61,12 +61,106 @@ CopyCat is an intelligent copy trading bot designed for prediction markets. It:
 - Realistic order execution with slippage and fees
 - Comprehensive performance analytics
 - Backtesting capabilities
+- **Micro Mode**: Full feature parity with live trading
 
 ### ⚙️ Orchestration
 - Automated trading cycles
 - Health checks and circuit breakers
 - Error recovery and logging
 - CLI and API interfaces
+- **Micro Mode Integration**: Circuit breaker, milestone tracking, auto transitions
+
+---
+
+## 🎯 Micro Mode - Small Account Optimization
+
+CopyCat includes **Micro Mode** specifically designed for small accounts ($10-$100) with aggressive growth strategies.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Aggressive Position Sizing** | Up to 75% position size for $10 accounts |
+| **Circuit Breaker Protection** | Mode-specific drawdown thresholds |
+| **Automatic Mode Transitions** | NANO → MICRO → MINI → BALANCED as balance grows |
+| **Milestone Notifications** | Discord alerts for $20, $50, $100 milestones |
+| **Bootstrap Trading** | Instant diversification from proven traders |
+
+### Mode Settings
+
+| Mode | Balance Range | Position Size | Kelly | Max Drawdown |
+|------|---------------|---------------|-------|--------------|
+| **NANO** | $0-$15 | 75% | 0.75 | 30% |
+| **MICRO** | $15-$25 | 60% | 0.75 | 25% |
+| **MINI** | $25-$50 | 50% | 0.50 | 20% |
+| **BALANCED** | $50-$200 | 40% | 0.40 | 18% |
+
+### Usage
+
+```python
+# For sandbox testing with micro mode
+from orchestrator.sandbox_micro import create_micro_sandbox_runner
+
+runner = await create_micro_sandbox_runner(
+    config=create_micro_sandbox_config(
+        initial_balance=10.0,
+        micro_mode="nano",  # Start with NANO for $10
+        enable_notifications=True,
+        discord_webhook_url="https://discord.com/api/webhooks/...",
+    ),
+    api_client=mock_client,
+)
+
+await runner.start()
+```
+
+```python
+# For live trading with micro mode
+from orchestrator.live_trading_micro import create_micro_live_runner
+
+runner = await create_micro_live_runner(
+    config=create_micro_live_config(
+        initial_balance=10.0,
+        micro_mode="nano",
+        wallet_address="0x...",  # Your wallet address
+        enable_notifications=True,
+        discord_webhook_url="https://discord.com/api/webhooks/...",
+    ),
+    api_client=polymarket_client,
+)
+
+await runner.start()
+```
+
+### Demo Script
+
+```bash
+# Test in sandbox mode
+python demo_live_trading_micro.py --mode sandbox --balance 10 --micro-mode nano
+
+# Live trading (⚠️ REAL MONEY)
+python demo_live_trading_micro.py --mode live --balance 10 --micro-mode nano --wallet 0x... --discord "WEBHOOK_URL"
+```
+
+### API Endpoints
+
+```bash
+# Auto-select mode based on balance
+POST /api/config/auto-select
+{
+    "balance": 25.0,
+    "risk_tolerance": "medium"
+}
+
+# Validate configuration
+POST /api/config/validate
+{
+    "config": {
+        "position_size_pct": 0.50,
+        "kelly_fraction": 0.50
+    }
+}
+```
 
 ---
 
