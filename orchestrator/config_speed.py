@@ -304,6 +304,9 @@ def create_speed_mode_config(
     """
     Factory function to create speed mode configuration.
     
+    Optimized for compound growth with small balances.
+    No minimum order sizes on Polymarket = can trade any amount.
+    
     Args:
         initial_balance: Starting balance
         mode: SANDBOX or LIVE
@@ -322,7 +325,7 @@ def create_speed_mode_config(
     
     selected_mode = mode_map.get(speed_mode, SpeedMode.BALANCED)
     
-    # Configure based on speed mode
+    # Configure based on speed mode - optimized for small balances & compound growth
     if selected_mode == SpeedMode.CONSERVATIVE:
         tiered = TieredCopyConfig(
             enabled=True, tier1_multiplier=2.0, tier1_traders=2, tier2_traders=5
@@ -332,6 +335,16 @@ def create_speed_mode_config(
         )
         adaptive = AdaptiveConfig(
             base_max_traders=10, strategy=ScalingStrategy.CONSERVATIVE
+        )
+        # Conservative trading: smaller positions, more selective
+        copy_trading = CopyTradingConfig(
+            position_sizing_method="scaled",
+            position_size_pct=0.08,  # 8% per trade
+            kelly_fraction=0.25,
+            max_position_size_pct=0.15,
+            max_total_exposure_pct=0.50,
+            min_order_size=0.01,  # No minimums on Polymarket
+            max_orders_per_day=50,
         )
     elif selected_mode == SpeedMode.BALANCED:
         tiered = TieredCopyConfig(
@@ -343,6 +356,16 @@ def create_speed_mode_config(
         adaptive = AdaptiveConfig(
             base_max_traders=15, strategy=ScalingStrategy.BALANCED
         )
+        # Balanced: medium positions, good for compound growth
+        copy_trading = CopyTradingConfig(
+            position_sizing_method="scaled",
+            position_size_pct=0.12,  # 12% per trade (aggressive for growth)
+            kelly_fraction=0.25,
+            max_position_size_pct=0.20,
+            max_total_exposure_pct=0.50,
+            min_order_size=0.01,  # No minimums on Polymarket
+            max_orders_per_day=100,  # More trades = more compounding
+        )
     else:  # AGGRESSIVE or EXTREME
         tiered = TieredCopyConfig(
             enabled=True, tier1_multiplier=4.0, tier1_traders=5, tier2_traders=10
@@ -353,6 +376,26 @@ def create_speed_mode_config(
         adaptive = AdaptiveConfig(
             base_max_traders=25, strategy=ScalingStrategy.AGGRESSIVE
         )
+        # Aggressive: larger positions, maximum growth potential
+        copy_trading = CopyTradingConfig(
+            position_sizing_method="scaled",
+            position_size_pct=0.15,  # 15% per trade
+            kelly_fraction=0.25,
+            max_position_size_pct=0.25,
+            max_total_exposure_pct=0.60,
+            min_order_size=0.01,
+            max_orders_per_day=150,
+        )
+    
+    # Create orchestrator config with optimized copy trading
+    orchestrator_config = OrchestratorConfig(
+        mode=mode,
+        platform=MarketPlatform.POLYMARKET,
+        trader_selection=TraderSelectionConfig(
+            mode=SelectionMode.GROWTH,
+        ),
+        copy_trading=copy_trading,
+    )
     
     return SpeedModeConfig(
         speed_mode=selected_mode,
@@ -369,6 +412,7 @@ def create_speed_mode_config(
         tiered_config=tiered,
         momentum_config=momentum,
         adaptive_config=adaptive,
+        orchestrator_config=orchestrator_config,
     )
 
 

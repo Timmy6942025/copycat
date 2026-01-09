@@ -110,13 +110,13 @@ class BotFilterOrchestratorConfig:
 class CopyTradingConfig:
     """Configuration for copy trading behavior."""
     position_sizing_method: str = "scaled"  # fixed_amount, percentage, scaled, kelly
-    base_position_size: float = 100.0  # Fixed amount or percentage of portfolio
-    position_size_pct: float = 0.05  # 5% of portfolio per trade
+    base_position_size: float = 10.0  # Fixed amount or percentage of portfolio
+    position_size_pct: float = 0.10  # 10% of portfolio per trade (optimized for growth)
     kelly_fraction: float = 0.25  # Fractional Kelly to reduce risk
-    max_position_size_pct: float = 0.10  # Max 10% per single trade
+    max_position_size_pct: float = 0.20  # Max 20% per single trade
     max_total_exposure_pct: float = 0.50  # Max 50% total exposure
-    min_order_size: float = 1.0  # Minimum $1 per trade
-    max_orders_per_day: int = 50
+    min_order_size: float = 0.01  # Minimum $0.01 per trade (no Polymarket minimums)
+    max_orders_per_day: int = 100  # Allow more trades for compound growth
 
 
 @dataclass
@@ -137,10 +137,10 @@ class LiveConfig:
     """Configuration for live trading (when mode is LIVE)."""
     wallet_address: str = ""
     initial_balance: float = 10000.0
-    max_position_size_pct: float = 0.10
+    max_position_size_pct: float = 0.20
     max_total_exposure_pct: float = 0.50
-    max_orders_per_day: int = 50
-    min_order_size: float = 1.0
+    max_orders_per_day: int = 100
+    min_order_size: float = 0.01  # No Polymarket minimums
     require_order_confirmation: bool = True
     max_slippage_pct: float = 0.05
     enable_price_protection: bool = True
