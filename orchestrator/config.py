@@ -187,6 +187,28 @@ class NotificationConfig:
 
 
 @dataclass
+class BoostModeConfig:
+    """
+    Configuration for Boost Mode - aggressive growth when account is small.
+
+    When enabled and account balance is below the threshold:
+    - Position sizes are increased to accelerate growth
+    - Trades on markets resolving sooner can get larger allocations
+    - Once balance exceeds threshold, returns to normal behavior
+
+    This helps accounts grow faster from small starting amounts (e.g., < $500)
+    to reach a sustainable trading size more quickly.
+    """
+    enabled: bool = False  # Toggle boost mode on/off
+    balance_threshold: float = 500.0  # Max balance to apply boost mode
+    position_multiplier: float = 2.0  # Multiply position sizes when in boost mode
+    max_boost_position_pct: float = 0.25  # Max 25% per trade even in boost mode
+    prefer_quick_resolve: bool = True  # Prioritize faster-resolving markets
+    quick_resolve_threshold_hours: float = 168.0  # Consider "quick" if resolves within 7 days
+    quick_resolve_multiplier: float = 1.5  # Additional multiplier for quick-resolving markets
+
+
+@dataclass
 class OrchestratorConfig:
     """Main orchestrator configuration."""
     # Mode settings
@@ -215,8 +237,8 @@ class OrchestratorConfig:
     health_check: HealthCheckConfig = field(default_factory=HealthCheckConfig)
     error_recovery: ErrorRecoveryConfig = field(default_factory=ErrorRecoveryConfig)
 
-    # Notifications
-    notifications: NotificationConfig = field(default_factory=NotificationConfig)
+    # Boost Mode
+    boost_mode: BoostModeConfig = field(default_factory=BoostModeConfig)
 
     # Trading Constraints
     max_traders_to_copy: int = 10

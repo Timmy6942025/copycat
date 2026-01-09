@@ -772,25 +772,67 @@ class CopyCatOrchestrator:
         pct = self.config.copy_trading.position_size_pct
         
         if method == "fixed_amount":
-            return base_size
+            base_position = base_size
         elif method == "percentage":
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            return portfolio_value * pct
+            base_position = portfolio_value * pct
         elif method == "scaled":
             # Scale by growth score
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            base = portfolio_value * pct
+            base_position = portfolio_value * pct
             # Scale by growth/overall score (0.25 to 1.0 multiplier)
             multiplier = 0.25 + (growth_metrics.overall_score * 0.75)
-            return base * multiplier
+            base_position = base_position * multiplier
         elif method == "kelly":
             # Kelly based on growth score and stability
             kelly = growth_metrics.overall_score * growth_metrics.stability_score
             kelly *= self.config.copy_trading.kelly_fraction
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            return portfolio_value * min(kelly, 0.25)  # Cap at 25%
+            base_position = portfolio_value * min(kelly, 0.25)  # Cap at 25%
         else:
-            return base_size
+            base_position = base_size
+
+        # Apply boost mode if active
+        position_size = self._apply_boost_mode_multiplier(base_position, growth_metrics)
+        
+        return position_size
+
+    def _apply_boost_mode_multiplier(self, base_position: float, growth_metrics = None) -> float:
+        """
+        Apply boost mode multipliers when account balance is low.
+
+        Boost mode increases position sizes to accelerate growth when:
+        - Boost mode is enabled in config
+        - Current portfolio value is below the balance threshold
+        """
+        boost_config = self.config.boost_mode
+        
+        # Check if boost mode is enabled
+        if not boost_config.enabled:
+            return base_position
+        
+        # Calculate current portfolio value
+        portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
+        
+        # Check if we're below the threshold for boost mode
+        if portfolio_value >= boost_config.balance_threshold:
+            return base_position
+        
+        # Boost mode is active - apply multipliers
+        multiplier = boost_config.position_multiplier
+        boosted_position = base_position * multiplier
+        
+        # Apply max position cap (even in boost mode, don't go crazy)
+        max_position = portfolio_value * boost_config.max_boost_position_pct
+        if boosted_position > max_position:
+            boosted_position = max_position
+        
+        logger.debug(
+            f"Boost mode active: portfolio ${portfolio_value:.2f} < ${boost_config.balance_threshold:.2f}, "
+            f"position ${base_position:.2f} -> ${boosted_position:.2f} (x{multiplier})"
+        )
+        
+        return boosted_position
 
     def _calculate_position_size(self, trader_result) -> float:
         """Calculate recommended position size for a trader."""
@@ -799,18 +841,18 @@ class CopyCatOrchestrator:
         pct = self.config.copy_trading.position_size_pct
         
         if method == "fixed_amount":
-            return base_size
+            base_position = base_size
         elif method == "percentage":
             # Get current portfolio value from state or use initial balance
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            return portfolio_value * pct
+            base_position = portfolio_value * pct
         elif method == "scaled":
             # Scale by trader reputation score
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            base = portfolio_value * pct
+            base_position = portfolio_value * pct
             # Scale by confidence (0.5 to 1.0 multiplier)
             multiplier = 0.5 + (trader_result.confidence_score / 2)
-            return base * multiplier
+            base_position = base_position * multiplier
         elif method == "kelly":
             # Kelly Criterion (simplified)
             win_rate = trader_result.performance.win_rate
@@ -822,9 +864,14 @@ class CopyCatOrchestrator:
             kelly = max(0, kelly) * self.config.copy_trading.kelly_fraction
             
             portfolio_value = self.state.total_pnl + self.config.sandbox.initial_balance
-            return portfolio_value * kelly
+            base_position = portfolio_value * kelly
         else:
-            return base_size
+            base_position = base_size
+
+        # Apply boost mode if active
+        position_size = self._apply_boost_mode_multiplier(base_position)
+        
+        return position_size
 
     # =========================================================================
     # Copy Trading Management
