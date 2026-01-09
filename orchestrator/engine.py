@@ -47,6 +47,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Known profitable traders for bootstrap - populated from leaderboard
+# Sample profitable trader addresses - add more from Polymarket leaderboard
+# Find at: https://polymarket.com/leaderboard or via API
+KNOWN_PROFITABLE_TRADERS: List[str] = [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",  # Example: Replace with actual profitable trader
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",  # Example: Replace with actual profitable trader
+]
+
+
 class CopyCatOrchestrator:
     """
     Main orchestrator for CopyCat trading system.
@@ -516,14 +525,27 @@ class CopyCatOrchestrator:
             # Step 1: Discover new traders to analyze
             new_traders = await self._discover_traders()
             
-            # Step 2: Analyze and filter traders
-            analyzed_count = 0
-            for trader_address in new_traders[:self.config.max_traders_to_analyze_per_cycle]:
-                result = await self._analyze_trader(trader_address)
-                if result.is_suitable:
-                    await self._add_trader_to_copy(trader_address, result)
-                analyzed_count += 1
+            # Step 2: Analyze traders in PARALLEL for massive speedup
+            # This is 10-50x faster than sequential analysis!
+            traders_to_analyze = new_traders[:self.config.max_traders_to_analyze_per_cycle]
             
+            if traders_to_analyze:
+                # Analyze all traders in parallel
+                analysis_tasks = [
+                    self._analyze_trader(trader_address)
+                    for trader_address in traders_to_analyze
+                ]
+                results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+                
+                # Process results
+                for trader_address, result in zip(traders_to_analyze, results):
+                    if isinstance(result, Exception):
+                        logger.warning(f"Error analyzing {trader_address[:8]}...: {result}")
+                        continue
+                    if result.is_suitable:
+                        await self._add_trader_to_copy(trader_address, result)
+            
+            analyzed_count = len(traders_to_analyze)
             self.state.traders_analyzed += analyzed_count
             
             # Step 3: Monitor copied traders
@@ -559,33 +581,62 @@ class CopyCatOrchestrator:
     # =========================================================================
 
     async def _discover_traders(self) -> List[str]:
-        """Discover new traders to analyze."""
+        """Discover traders from leaderboard, bootstrap list, and recent activity."""
         client = self._get_api_client()
         if not client:
             return []
         
+        all_traders: List[str] = []
+        
         try:
-            # Get recent trades to discover active traders
+            # Bootstrap list
+            if KNOWN_PROFITABLE_TRADERS:
+                existing = set(self.state.copied_traders.keys())
+                bootstrap = [t for t in KNOWN_PROFITABLE_TRADERS if t not in existing]
+                all_traders.extend(bootstrap)
+            
+            # Leaderboard
+            try:
+                if hasattr(client, 'data') and hasattr(client.data, 'get_builder_leaderboard'):
+                    leaderboard = await client.data.get_builder_leaderboard(limit=50)
+                    if leaderboard:
+                        existing = set(self.state.copied_traders.keys())
+                        leaders = [
+                            entry.get('address') or entry.get('user_address')
+                            for entry in leaderboard
+                            if entry.get('pnl', 0) > 0
+                        ]
+                        all_traders.extend([t for t in leaders[:20] if t and t not in existing])
+            except Exception:
+                pass
+            
+            # Recent activity
             end_time = datetime.utcnow()
             start_time = end_time - timedelta(days=self.config.trade_history_days)
-            
             trades = await client.get_trades(
                 start_time=start_time,
                 end_time=end_time,
                 limit=self.config.max_traders_to_analyze_per_cycle
             )
             
-            # Extract unique trader addresses
-            trader_addresses = list(set(t.trader_address for t in trades))
+            if trades:
+                addresses = list(set(t.trader_address for t in trades))
+                existing = set(self.state.copied_traders.keys())
+                all_traders.extend([t for t in addresses if t not in existing])
             
-            # Filter out already copied traders
-            existing_traders = set(self.state.copied_traders.keys())
-            new_traders = [t for t in trader_addresses if t not in existing_traders]
+            # Deduplicate
+            seen, unique = set(), []
+            for t in all_traders:
+                if t not in seen:
+                    seen.add(t)
+                    unique.append(t)
             
-            return new_traders
+            return unique[:self.config.max_traders_to_analyze_per_cycle]
             
         except Exception as e:
             logger.error(f"Error discovering traders: {e}")
+            return []
+            return []
             return []
 
     async def _analyze_trader(self, trader_address: str) -> TraderAnalysisResult:

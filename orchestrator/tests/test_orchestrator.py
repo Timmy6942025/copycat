@@ -410,6 +410,11 @@ class TestTradingCycle:
         """Test that trader discovery filters out already copied traders."""
         from datetime import datetime
         from api_clients.base import Trade, OrderSide
+        from orchestrator.engine import KNOWN_PROFITABLE_TRADERS
+        
+        # Clear bootstrap list for this test
+        original_traders = KNOWN_PROFITABLE_TRADERS[:]
+        KNOWN_PROFITABLE_TRADERS.clear()
         
         # Add existing copied trader
         orchestrator.state.copied_traders["0xEXISTING"] = TraderCopyConfig(
@@ -448,6 +453,10 @@ class TestTradingCycle:
         new_traders = await orchestrator._discover_traders()
         
         # Should only return the new trader
+        assert len(new_traders) == 1
+        
+        # Restore bootstrap list
+        KNOWN_PROFITABLE_TRADERS.extend(original_traders)
         assert len(new_traders) == 1
         assert "0xNEW" in new_traders
         assert "0xEXISTING" not in new_traders

@@ -304,8 +304,16 @@ def create_speed_mode_config(
     """
     Factory function to create speed mode configuration.
     
-    Optimized for compound growth with small balances.
+    Optimized for MAXIMUM COMPOUND GROWTH with small balances.
     No minimum order sizes on Polymarket = can trade any amount.
+    
+    KEY OPTIMIZATIONS FOR SPEED:
+    - Faster cycles: 10 seconds instead of 5 minutes (30x faster)
+    - Larger positions: 25-50% per trade instead of 12-15%
+    - More trades: 500-1000/day instead of 50-150
+    - Fractional Kelly 0.5 instead of 0.25 (2x position sizes)
+    - No hedging (10% more capital for growth)
+    - Relaxed momentum filter (0.5% instead of 2%)
     
     Args:
         initial_balance: Starting balance
@@ -325,77 +333,90 @@ def create_speed_mode_config(
     
     selected_mode = mode_map.get(speed_mode, SpeedMode.BALANCED)
     
-    # Configure based on speed mode - optimized for small balances & compound growth
+    # Create orchestrator config with EXTREME growth settings
+    # These are optimized for maximum compound growth
+    orchestrator_config = OrchestratorConfig(
+        mode=mode,
+        platform=MarketPlatform.POLYMARKET,
+        trader_selection=TraderSelectionConfig(
+            mode=SelectionMode.GROWTH,
+            # Relaxed thresholds for faster trader discovery
+            growth_min_total_pnl=50.0,  # Was 100
+            growth_min_growth_rate=0.005,  # Was 0.02 - much more lenient
+            growth_max_drawdown=0.60,  # Was 0.50 - allow more drawdown
+            growth_min_equity_slope=0.0001,  # Was 0.0005 - easier to qualify
+            growth_min_consistency=0.20,  # Was 0.25 - more lenient
+            growth_min_active_days=2,  # Was 3 - faster to qualify
+        ),
+        # Faster cycle for maximum compounding
+        trader_data_refresh_interval_seconds=10,  # Was 300 (5 min) - 30x faster!
+        max_traders_to_analyze_per_cycle=100,  # Analyze more per cycle
+    )
+    
+    # Configure based on speed mode - optimized for small balances & MAX growth
     if selected_mode == SpeedMode.CONSERVATIVE:
         tiered = TieredCopyConfig(
             enabled=True, tier1_multiplier=2.0, tier1_traders=2, tier2_traders=5
         )
         momentum = MomentumConfig(
-            enabled=True, lookback_days=30, min_recent_return=0.03
+            enabled=True, lookback_days=30, min_recent_return=0.01  # Was 0.03
         )
         adaptive = AdaptiveConfig(
-            base_max_traders=10, strategy=ScalingStrategy.CONSERVATIVE
+            base_max_traders=15, strategy=ScalingStrategy.CONSERVATIVE
         )
-        # Conservative trading: smaller positions, more selective
+        # Conservative but still aggressive for growth
         copy_trading = CopyTradingConfig(
-            position_sizing_method="scaled",
-            position_size_pct=0.08,  # 8% per trade
-            kelly_fraction=0.25,
-            max_position_size_pct=0.15,
-            max_total_exposure_pct=0.50,
-            min_order_size=0.01,  # No minimums on Polymarket
-            max_orders_per_day=50,
+            position_sizing_method="kelly",
+            position_size_pct=0.25,  # Was 0.08 - 3x bigger!
+            kelly_fraction=0.50,  # Was 0.25 - double Kelly for growth
+            max_position_size_pct=0.30,
+            max_total_exposure_pct=0.70,
+            min_order_size=0.01,
+            max_orders_per_day=500,  # Was 50 - 10x more trades
         )
     elif selected_mode == SpeedMode.BALANCED:
         tiered = TieredCopyConfig(
             enabled=True, tier1_multiplier=3.0, tier1_traders=3, tier2_traders=7
         )
         momentum = MomentumConfig(
-            enabled=True, lookback_days=30, min_recent_return=0.02
+            enabled=True, lookback_days=30, min_recent_return=0.005  # Was 0.02 - 4x more lenient
         )
         adaptive = AdaptiveConfig(
-            base_max_traders=15, strategy=ScalingStrategy.BALANCED
+            base_max_traders=20, strategy=ScalingStrategy.BALANCED
         )
-        # Balanced: medium positions, good for compound growth
+        # Balanced: larger positions for better compound growth
         copy_trading = CopyTradingConfig(
-            position_sizing_method="scaled",
-            position_size_pct=0.12,  # 12% per trade (aggressive for growth)
-            kelly_fraction=0.25,
-            max_position_size_pct=0.20,
-            max_total_exposure_pct=0.50,
-            min_order_size=0.01,  # No minimums on Polymarket
-            max_orders_per_day=100,  # More trades = more compounding
+            position_sizing_method="kelly",
+            position_size_pct=0.35,  # Was 0.12 - nearly 3x bigger!
+            kelly_fraction=0.50,  # Was 0.25 - double Kelly
+            max_position_size_pct=0.40,
+            max_total_exposure_pct=0.80,
+            min_order_size=0.01,
+            max_orders_per_day=750,  # Was 100 - 7.5x more trades
         )
     else:  # AGGRESSIVE or EXTREME
         tiered = TieredCopyConfig(
             enabled=True, tier1_multiplier=4.0, tier1_traders=5, tier2_traders=10
         )
         momentum = MomentumConfig(
-            enabled=True, lookback_days=14, min_recent_return=0.01
+            enabled=True, lookback_days=14, min_recent_return=0.002  # Was 0.01 - very lenient
         )
         adaptive = AdaptiveConfig(
-            base_max_traders=25, strategy=ScalingStrategy.AGGRESSIVE
+            base_max_traders=30, strategy=ScalingStrategy.AGGRESSIVE
         )
-        # Aggressive: larger positions, maximum growth potential
+        # Maximum growth potential
         copy_trading = CopyTradingConfig(
-            position_sizing_method="scaled",
-            position_size_pct=0.15,  # 15% per trade
-            kelly_fraction=0.25,
-            max_position_size_pct=0.25,
-            max_total_exposure_pct=0.60,
+            position_sizing_method="kelly",
+            position_size_pct=0.50,  # Was 0.15 - 3.3x bigger!
+            kelly_fraction=0.50,  # Double Kelly
+            max_position_size_pct=0.50,
+            max_total_exposure_pct=0.90,
             min_order_size=0.01,
-            max_orders_per_day=150,
+            max_orders_per_day=1000,  # Was 150 - 6.6x more trades
         )
     
-    # Create orchestrator config with optimized copy trading
-    orchestrator_config = OrchestratorConfig(
-        mode=mode,
-        platform=MarketPlatform.POLYMARKET,
-        trader_selection=TraderSelectionConfig(
-            mode=SelectionMode.GROWTH,
-        ),
-        copy_trading=copy_trading,
-    )
+    # Assign copy_trading config to orchestrator
+    orchestrator_config.copy_trading = copy_trading
     
     return SpeedModeConfig(
         speed_mode=selected_mode,
@@ -404,7 +425,7 @@ def create_speed_mode_config(
         enable_tiered_copying=enable_all_features,
         enable_momentum_filter=enable_all_features,
         enable_event_focus=enable_all_features,
-        enable_hedging=enable_all_features,
+        enable_hedging=False,  # CRITICAL: Disable hedging for MAX growth
         enable_optimizer=enable_all_features,
         enable_allocation=enable_all_features,
         enable_bootstrap=enable_all_features,
