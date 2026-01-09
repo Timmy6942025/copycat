@@ -143,10 +143,15 @@ Examples:
             print("Error: Orchestrator is already running. Use 'stop' first.")
             return
 
-        # Create configuration
+        # Create configuration with Growth-based selection (default)
+        from .config import TraderSelectionConfig, SandboxConfigOrchestrator, SelectionMode
+        
         config = OrchestratorConfig(
             mode=TradingMode.SANDBOX if args.mode == "sandbox" else TradingMode.LIVE,
             platform=MarketPlatform.POLYMARKET if args.platform == "polymarket" else MarketPlatform.KALSHI,
+            trader_selection=TraderSelectionConfig(
+                mode=SelectionMode.GROWTH,  # Default to growth-based selection
+            ),
         )
 
         # Update sandbox config with provided balance

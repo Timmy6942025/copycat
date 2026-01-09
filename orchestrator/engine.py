@@ -954,11 +954,21 @@ class CopyCatOrchestrator:
         try:
             metrics = self.trading_runner.get_performance_metrics()
             
-            self.state.total_pnl = metrics.get('total_pnl', 0)
-            self.state.total_pnl_pct = metrics.get('total_pnl_pct', 0)
-            self.state.win_rate = metrics.get('win_rate', 0)
-            self.state.sharpe_ratio = metrics.get('sharpe_ratio', 0)
-            self.state.max_drawdown = metrics.get('max_drawdown', 0)
+            # Handle both dataclass and dict return types
+            if hasattr(metrics, 'total_pnl'):
+                # Dataclass - access attributes directly
+                self.state.total_pnl = metrics.total_pnl
+                self.state.total_pnl_pct = metrics.total_pnl_pct
+                self.state.win_rate = metrics.win_rate
+                self.state.sharpe_ratio = metrics.sharpe_ratio
+                self.state.max_drawdown = metrics.max_drawdown
+            elif isinstance(metrics, dict):
+                # Dict - use .get()
+                self.state.total_pnl = metrics.get('total_pnl', 0)
+                self.state.total_pnl_pct = metrics.get('total_pnl_pct', 0)
+                self.state.win_rate = metrics.get('win_rate', 0)
+                self.state.sharpe_ratio = metrics.get('sharpe_ratio', 0)
+                self.state.max_drawdown = metrics.get('max_drawdown', 0)
             
         except Exception as e:
             logger.error(f"Error updating performance metrics: {e}")
