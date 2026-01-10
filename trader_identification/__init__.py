@@ -21,6 +21,7 @@ from api_clients.base import (
 @dataclass
 class TraderSelectionConfig:
     """Configuration for trader selection criteria."""
+
     min_win_rate: float = 0.55
     min_trades: int = 10
     max_drawdown: float = 0.25
@@ -34,6 +35,7 @@ class TraderSelectionConfig:
 @dataclass
 class InsiderDetectionResult:
     """Result of insider detection analysis."""
+
     early_position_score: float = 0.0
     event_correlation_score: float = 0.0
     category_expertise_score: float = 0.0
@@ -45,6 +47,7 @@ class InsiderDetectionResult:
 @dataclass
 class BotDetectionResult:
     """Result of bot detection analysis."""
+
     is_bot_likely: bool = False
     hft_score: float = 0.0
     arbitrage_score: float = 0.0
@@ -56,6 +59,7 @@ class BotDetectionResult:
 @dataclass
 class TraderIdentificationResult:
     """Complete trader identification result."""
+
     trader_address: str
     performance: TraderPerformance
     insider_result: Optional[InsiderDetectionResult] = None
@@ -95,10 +99,14 @@ class TraderIdentificationEngine:
         bot_result = self.detect_bot_activity(trades)
 
         # Calculate reputation score
-        reputation_score = self.calculate_reputation_score(performance, insider_result, bot_result)
+        reputation_score = self.calculate_reputation_score(
+            performance, insider_result, bot_result
+        )
 
         # Calculate overall confidence
-        confidence_score = self.calculate_confidence(performance, insider_result, bot_result)
+        confidence_score = self.calculate_confidence(
+            performance, insider_result, bot_result
+        )
 
         # Determine if trader is suitable for copying
         result = self.evaluate_suitability(
@@ -138,13 +146,13 @@ class TraderIdentificationEngine:
         total_pnl = sum(self._calculate_trade_pnl(t) for t in trades)
         total_volume = sum(t.total_value for t in trades)
 
-        # Win rate
-        win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0
+        # Win rate - safe division with zero check
+        win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0.0
 
-        # Profit factor
+        # Profit factor - return 0 instead of inf for safety (infinite profit factor means no losses)
         gross_profits = sum(self._calculate_trade_pnl(t) for t in winning_trades)
         gross_losses = abs(sum(self._calculate_trade_pnl(t) for t in losing_trades))
-        profit_factor = gross_profits / gross_losses if gross_losses > 0 else float('inf')
+        profit_factor = gross_profits / gross_losses if gross_losses > 0 else 0.0
 
         # Calculate returns for risk metrics
         returns = self._calculate_returns(trades)
@@ -209,8 +217,10 @@ class TraderIdentificationEngine:
 
         # Determine if likely insider
         insider_threshold = 0.7
-        result.is_insider_likely = result.early_position_score >= insider_threshold or \
-                                 result.event_correlation_score >= insider_threshold
+        result.is_insider_likely = (
+            result.early_position_score >= insider_threshold
+            or result.event_correlation_score >= insider_threshold
+        )
 
         # Confidence based on trade count
         confidence = min(1.0, len(trades) / 100)  # More trades = higher confidence
@@ -244,9 +254,11 @@ class TraderIdentificationEngine:
 
         # Determine if likely bot
         bot_threshold = 0.7
-        result.is_bot_likely = result.hft_score >= bot_threshold or \
-                              result.arbitrage_score >= bot_threshold or \
-                              result.pattern_score >= bot_threshold
+        result.is_bot_likely = (
+            result.hft_score >= bot_threshold
+            or result.arbitrage_score >= bot_threshold
+            or result.pattern_score >= bot_threshold
+        )
 
         # Confidence
         confidence = min(1.0, len(trades) / 100)
@@ -279,15 +291,19 @@ class TraderIdentificationEngine:
         bot_score = 1.0 - bot_result.pattern_score
 
         # Consistency score (based on Sharpe ratio and drawdown)
-        consistency_score = min(1.0, performance.sharpe_ratio / 3.0) if performance.sharpe_ratio > 0 else 0.5
+        consistency_score = (
+            min(1.0, performance.sharpe_ratio / 3.0)
+            if performance.sharpe_ratio > 0
+            else 0.5
+        )
         consistency_score = consistency_score * (1 - performance.max_drawdown)
 
         # Calculate weighted score
         reputation_score = (
-            weights["performance"] * performance_score +
-            weights["insider"] * insider_score +
-            weights["bot_filter"] * bot_score +
-            weights["consistency"] * consistency_score
+            weights["performance"] * performance_score
+            + weights["insider"] * insider_score
+            + weights["bot_filter"] * bot_score
+            + weights["consistency"] * consistency_score
         )
 
         return max(0.0, min(1.0, reputation_score))
@@ -309,7 +325,9 @@ class TraderIdentificationEngine:
         bot_confidence = bot_result.confidence
 
         # Combined confidence
-        confidence = (trade_confidence * 0.5 + insider_confidence * 0.25 + bot_confidence * 0.25)
+        confidence = (
+            trade_confidence * 0.5 + insider_confidence * 0.25 + bot_confidence * 0.25
+        )
 
         return confidence
 
@@ -326,61 +344,97 @@ class TraderIdentificationEngine:
 
         # Check minimum trades
         if performance.total_trades >= self.config.min_trades:
-            selected.append(f"Has {performance.total_trades} trades (minimum: {self.config.min_trades})")
+            selected.append(
+                f"Has {performance.total_trades} trades (minimum: {self.config.min_trades})"
+            )
         else:
-            rejected.append(f"Only {performance.total_trades} trades (minimum: {self.config.min_trades})")
+            rejected.append(
+                f"Only {performance.total_trades} trades (minimum: {self.config.min_trades})"
+            )
 
         # Check win rate
         if performance.win_rate >= self.config.min_win_rate:
-            selected.append(f"Win rate {performance.win_rate:.1%} (minimum: {self.config.min_win_rate:.1%})")
+            selected.append(
+                f"Win rate {performance.win_rate:.1%} (minimum: {self.config.min_win_rate:.1%})"
+            )
         else:
-            rejected.append(f"Win rate {performance.win_rate:.1%} (minimum: {self.config.min_win_rate:.1%})")
+            rejected.append(
+                f"Win rate {performance.win_rate:.1%} (minimum: {self.config.min_win_rate:.1%})"
+            )
 
         # Check drawdown
         if performance.max_drawdown <= self.config.max_drawdown:
-            selected.append(f"Max drawdown {performance.max_drawdown:.1%} (maximum: {self.config.max_drawdown:.1%})")
+            selected.append(
+                f"Max drawdown {performance.max_drawdown:.1%} (maximum: {self.config.max_drawdown:.1%})"
+            )
         else:
-            rejected.append(f"Max drawdown {performance.max_drawdown:.1%} (maximum: {self.config.max_drawdown:.1%})")
+            rejected.append(
+                f"Max drawdown {performance.max_drawdown:.1%} (maximum: {self.config.max_drawdown:.1%})"
+            )
 
         # Check Sharpe ratio
         if performance.sharpe_ratio >= self.config.min_sharpe_ratio:
-            selected.append(f"Sharpe ratio {performance.sharpe_ratio:.2f} (minimum: {self.config.min_sharpe_ratio:.2f})")
+            selected.append(
+                f"Sharpe ratio {performance.sharpe_ratio:.2f} (minimum: {self.config.min_sharpe_ratio:.2f})"
+            )
         else:
-            rejected.append(f"Sharpe ratio {performance.sharpe_ratio:.2f} (minimum: {self.config.min_sharpe_ratio:.2f})")
+            rejected.append(
+                f"Sharpe ratio {performance.sharpe_ratio:.2f} (minimum: {self.config.min_sharpe_ratio:.2f})"
+            )
 
         # Check profit factor
         if performance.profit_factor >= self.config.min_profit_factor:
-            selected.append(f"Profit factor {performance.profit_factor:.2f} (minimum: {self.config.min_profit_factor:.2f})")
+            selected.append(
+                f"Profit factor {performance.profit_factor:.2f} (minimum: {self.config.min_profit_factor:.2f})"
+            )
         else:
-            rejected.append(f"Profit factor {performance.profit_factor:.2f} (minimum: {self.config.min_profit_factor:.2f})")
+            rejected.append(
+                f"Profit factor {performance.profit_factor:.2f} (minimum: {self.config.min_profit_factor:.2f})"
+            )
 
         # Check total P&L
         if performance.total_pnl >= self.config.min_total_pnl:
-            selected.append(f"Total P&L ${performance.total_pnl:,.2f} (minimum: ${self.config.min_total_pnl:,.2f})")
+            selected.append(
+                f"Total P&L ${performance.total_pnl:,.2f} (minimum: ${self.config.min_total_pnl:,.2f})"
+            )
         else:
-            rejected.append(f"Total P&L ${performance.total_pnl:,.2f} (minimum: ${self.config.min_total_pnl:,.2f})")
+            rejected.append(
+                f"Total P&L ${performance.total_pnl:,.2f} (minimum: ${self.config.min_total_pnl:,.2f})"
+            )
 
         # Check average hold time
         if performance.avg_hold_time_hours <= self.config.max_avg_hold_time_hours:
-            selected.append(f"Avg hold time {performance.avg_hold_time_hours:.1f}h (maximum: {self.config.max_avg_hold_time_hours:.1f}h)")
+            selected.append(
+                f"Avg hold time {performance.avg_hold_time_hours:.1f}h (maximum: {self.config.max_avg_hold_time_hours:.1f}h)"
+            )
         else:
-            rejected.append(f"Avg hold time {performance.avg_hold_time_hours:.1f}h (maximum: {self.config.max_avg_hold_time_hours:.1f}h)")
+            rejected.append(
+                f"Avg hold time {performance.avg_hold_time_hours:.1f}h (maximum: {self.config.max_avg_hold_time_hours:.1f}h)"
+            )
 
         # Check reputation score
         if reputation_score >= self.config.min_reputation_score:
-            selected.append(f"Reputation score {reputation_score:.2f} (minimum: {self.config.min_reputation_score:.2f})")
+            selected.append(
+                f"Reputation score {reputation_score:.2f} (minimum: {self.config.min_reputation_score:.2f})"
+            )
         else:
-            rejected.append(f"Reputation score {reputation_score:.2f} (minimum: {self.config.min_reputation_score:.2f})")
+            rejected.append(
+                f"Reputation score {reputation_score:.2f} (minimum: {self.config.min_reputation_score:.2f})"
+            )
 
         # Check bot detection
         if not bot_result.is_bot_likely:
             selected.append("Passed bot detection")
         else:
-            rejected.append(f"Failed bot detection (HFT: {bot_result.hft_score:.2f}, Arbitrage: {bot_result.arbitrage_score:.2f})")
+            rejected.append(
+                f"Failed bot detection (HFT: {bot_result.hft_score:.2f}, Arbitrage: {bot_result.arbitrage_score:.2f})"
+            )
 
         # Check insider detection (optional - we might want insiders)
         if insider_result.is_insider_likely:
-            selected.append("Detected insider trading patterns (may indicate information advantage)")
+            selected.append(
+                "Detected insider trading patterns (may indicate information advantage)"
+            )
 
         is_suitable = len(selected) > len(rejected) and not bot_result.is_bot_likely
 
@@ -396,13 +450,20 @@ class TraderIdentificationEngine:
     def _calculate_trade_pnl(self, trade: Trade) -> float:
         """Calculate P&L for a trade."""
         # Simplified calculation
-        return trade.total_value - trade.fees if self._is_winning_trade(trade) else -(trade.total_value + trade.fees)
+        return (
+            trade.total_value - trade.fees
+            if self._is_winning_trade(trade)
+            else -(trade.total_value + trade.fees)
+        )
 
     def _calculate_returns(self, trades: List[Trade]) -> List[float]:
         """Calculate returns from trades."""
         if not trades:
             return []
-        return [self._calculate_trade_pnl(t) / t.total_value if t.total_value > 0 else 0 for t in trades]
+        return [
+            self._calculate_trade_pnl(t) / t.total_value if t.total_value > 0 else 0
+            for t in trades
+        ]
 
     def _calculate_sharpe_ratio(self, returns: List[float]) -> float:
         """Calculate Sharpe ratio from returns."""
@@ -440,7 +501,7 @@ class TraderIdentificationEngine:
 
         hold_times = []
         for i in range(1, len(trades)):
-            time_diff = (trades[i].timestamp - trades[i-1].timestamp).total_seconds()
+            time_diff = (trades[i].timestamp - trades[i - 1].timestamp).total_seconds()
             hold_times.append(time_diff / 3600)  # Convert to hours
 
         return hold_times
@@ -456,7 +517,7 @@ class TraderIdentificationEngine:
         total_count = 0
 
         for i in range(1, len(trades)):
-            prev_price = trades[i-1].price if i > 0 else 0.5
+            prev_price = trades[i - 1].price if i > 0 else 0.5
             curr_price = trades[i].price
 
             if prev_price != 0.5 and curr_price != prev_price:
@@ -496,10 +557,17 @@ class TraderIdentificationEngine:
         market_scores = {}
         for market_id, market_trades in market_groups.items():
             wins = sum(1 for t in market_trades if self._is_winning_trade(t))
-            market_scores[market_id] = len(market_trades), wins / len(market_trades) if market_trades else 0
+            market_scores[market_id] = (
+                len(market_trades),
+                wins / len(market_trades) if market_trades else 0,
+            )
 
         # Score based on specialization
-        avg_score = sum(score for _, score in market_scores.values()) / len(market_scores) if market_scores else 0.5
+        avg_score = (
+            sum(score for _, score in market_scores.values()) / len(market_scores)
+            if market_scores
+            else 0.5
+        )
 
         return {"score": avg_score, "market_scores": market_scores}
 
@@ -553,7 +621,9 @@ class TraderIdentificationEngine:
         # Check for consistent timing
         hold_times = self._calculate_hold_times(trades)
         if hold_times:
-            time_variance = statistics.variance(hold_times) if len(hold_times) > 1 else 0
+            time_variance = (
+                statistics.variance(hold_times) if len(hold_times) > 1 else 0
+            )
             if time_variance < 1.0:  # Very consistent timing
                 score += 0.3
                 reasons.append("consistent_timing")
@@ -567,7 +637,9 @@ class TraderIdentificationEngine:
 
         # Check for pattern in trade sizes
         if quantities:
-            size_variance = statistics.variance(quantities) if len(quantities) > 1 else 0
+            size_variance = (
+                statistics.variance(quantities) if len(quantities) > 1 else 0
+            )
             if size_variance == 0:
                 score += 0.2
                 reasons.append("fixed_trade_sizes")
