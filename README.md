@@ -77,14 +77,15 @@ CopyCat is an intelligent copy trading bot designed for prediction markets. It:
 CopyCat includes **Micro Mode** specifically designed for small accounts ($10-$100) with aggressive growth strategies.
 
 ### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Aggressive Position Sizing** | Up to 75% position size for $10 accounts |
-| **Circuit Breaker Protection** | Mode-specific drawdown thresholds |
-| **Automatic Mode Transitions** | NANO → MICRO → MINI → BALANCED as balance grows |
-| **Milestone Notifications** | Discord alerts for $20, $50, $100 milestones |
-| **Bootstrap Trading** | Instant diversification from proven traders |
+ 
+ | Feature | Description |
+ |---------|-------------|
+ | **Aggressive Position Sizing** | Up to 75% position size for $10 accounts |
+ | **Circuit Breaker Protection** | Mode-specific drawdown thresholds |
+ | **Automatic Mode Transitions** | NANO → MICRO → MINI → BALANCED as balance grows |
+ | **Milestone Notifications** | Discord alerts for $20, $50, $100 milestones |
+ | **Bootstrap Trading** | Instant diversification from proven traders |
+ | **Quick Resolve Prioritization** | Skip long-running markets, apply 2x bonus to quick-resolving markets |
 
 ### Mode Settings
 
@@ -94,9 +95,8 @@ CopyCat includes **Micro Mode** specifically designed for small accounts ($10-$1
 | **MICRO** | $15-$25 | 60% | 0.75 | 25% |
 | **MINI** | $25-$50 | 50% | 0.50 | 20% |
 | **BALANCED** | $50-$200 | 40% | 0.40 | 18% |
-
+| 
 ### Usage
-
 ```python
 # For sandbox testing with micro mode
 from orchestrator.sandbox_micro import create_micro_sandbox_runner
@@ -113,6 +113,161 @@ runner = await create_micro_sandbox_runner(
 
 await runner.start()
 ```
+
+```python
+# For live trading with micro mode
+from orchestrator.live_trading_micro import create_micro_live_runner
+
+runner = await create_micro_live_runner(
+    config=create_micro_live_config(
+        initial_balance=10.0,
+        micro_mode="nano",
+        wallet_address="0x...",  # Your wallet address
+        enable_notifications=True,
+        discord_webhook_url="https://discord.com/api/webhooks/...",
+    ),
+    api_client=polymarket_client,
+)
+
+await runner.start()
+```
+```
+
+## 🧺 Topic-Based Basket Trading
+
+CopyCat includes **topic-based wallet basket trading** for diversified, consensus-driven strategies. Instead of copying individual traders, this system builds "baskets" of wallets grouped by topic (e.g., geopolitics, crypto, sports, elections) and generates trading signals when 80%+ of the basket converges on the same outcome.
+
+### Key Concepts
+
+- **Topic-Based Baskets**: Group wallets by market category expertise
+- **Weighted Scoring**: Recent performance (7d/30d) weighted higher than all-time
+- **Consensus Signals**: 80%+ basket agreement triggers trades
+- **Price Band Filtering**: Ensure basket buys in tight price range
+- **Spread Protection**: Only trade when spread isn't "cooked"
+
+### Basket Construction Process
+
+1. **Wallet Filtering**:
+   - Only wallets older than 6 months
+   - No bots (filtered out wallets doing thousands of micro-trades)
+   - Recent win rate weighted more than all-time (last 7 days and last 30 days)
+   - Ranked by avg entry vs final price
+
+2. **Copycat Cluster Detection**:
+   - Excludes duplicate/correlated wallets that copy the same traders
+   - Only representative wallet from each cluster participates
+
+3. **Signal Generation**:
+   - Wait until 80%+ of basket enters the same outcome
+   - Check they're all buying within a tight price band (5% max)
+   - Only trigger if spread isn't cooked yet (10% max threshold)
+   - Right now: paper trading to avoid bias
+
+### Basket Configuration
+
+```python
+from basket_trading import (
+    BasketConfig,
+    Topic,
+)
+from basket_trading.orchestrator import BasketTradingOrchestrator
+from api_clients.polymarket.data_api import DataAPIClient
+
+# Create basket trading config
+config = BasketConfig(
+    # Wallet filtering
+    min_wallet_age_months=6,
+    min_trades_7d=3,
+    min_trades_30d=10,
+    min_win_rate_7d=0.45,
+    min_win_rate_30d=0.50,
+
+    # Bot filtering
+    max_hft_score=0.5,
+    max_arbitrage_score=0.5,
+    max_pattern_score=0.5,
+    max_micro_trades_per_day=1000,
+
+    # Basket composition
+    min_basket_size=10,
+    max_basket_size=50,
+    min_consensus_pct=0.80,  # 80% agreement
+
+    # Signal generation
+    max_price_band_pct=0.05,  # 5% price band
+    max_spread_pct=0.10,  # 10% spread threshold
+    min_basket_participation_pct=0.60,  # 60% of basket must be active
+
+    # Ranking weights
+    win_rate_7d_weight=0.40,
+    win_rate_30d_weight=0.35,
+    win_rate_all_time_weight=0.25,
+    avg_entry_vs_final_weight=0.30,
+    consistency_weight=0.20,
+    volume_weight=0.10,
+
+    # Copycat cluster detection
+    cluster_similarity_threshold=0.85,  # 85% trade similarity
+    max_cluster_size=3,  # Max wallets per cluster
+)
+
+# Initialize orchestrator
+data_client = DataAPIClient()
+orchestrator = BasketTradingOrchestrator(data_client, config)
+
+# Define wallet topics
+topic_wallets = {
+    Topic.GEOPOLITICS: [
+        "0x1234567890abcdef1234567890abcdef1234567890ab",
+        "0x2345678901abcdef1234567890abcdef1234567890cd",
+    ],
+    Topic.POLITICS: [
+        "0x345678901234567890abcdef1234567890def",
+    ],
+    Topic.ELECTIONS: [
+        "0x45678901234567890abcdef1234567890eff",
+    ],
+}
+
+# Initialize baskets
+baskets = await orchestrator.initialize_topic_baskets(topic_wallets)
+await orchestrator.detect_and_assign_clusters()
+await orchestrator.rank_all_baskets()
+
+# Scan for consensus signals
+signals = await orchestrator.scan_for_signals()
+
+# Execute top signals
+results = await orchestrator.execute_top_signals(limit=3)
+
+print(f"Generated {len(signals)} signals, executed {sum(1 for r in results if r.executed)} trades")
+```
+
+### Demo Script
+
+```bash
+# Run basket trading demo
+python demo_basket_trading.py
+```
+
+The demo will show:
+- Signal filtering and validation logic
+- Basket statistics for each topic
+- Generated consensus signals
+- Paper trading execution results
+- Performance summary
+
+### Key Differences from Individual Trader Copying
+
+| Aspect | Individual Copying | Basket Trading |
+|---------|-------------------|-----------------|
+| **Approach** | Follow single "smart" trader | Monitor group consensus |
+| **Diversification** | Fragile - trader can drift | Resilient - distributed across wallets |
+| **Signal Quality** | Depends on one trader's consistency | High - requires 80%+ agreement |
+| **Noise Reduction** | Single trader idiosyncrasies filtered out | Basket smooths individual biases |
+| **Risk Profile** | Concentrated risk | Diversified risk across topic experts |
+| **Entry Timing** | When one trader enters | When basket forms consensus |
+|
 
 ```python
 # For live trading with micro mode
